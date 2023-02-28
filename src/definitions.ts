@@ -1,3 +1,3 @@
 export interface HttpNativePlugin {
-  echo(options: { value: string }): Promise<{ value: string }>;
+  doPost(options: { url: string, data: any, headers: any }): Promise<{ data: any }>;
 }
