@@ -14,6 +14,8 @@ npx cap sync
 <docgen-index>
 
 * [`doPost(...)`](#dopost)
+* [`doGet(...)`](#doget)
+* [`initialize(...)`](#initialize)
 
 </docgen-index>
 
@@ -29,6 +31,36 @@ doPost(options: { url: string; data: any; headers: any; }) => Promise<{ data: an
 | Param         | Type                                                   |
 | ------------- | ------------------------------------------------------ |
 | **`options`** | <code>{ url: string; data: any; headers: any; }</code> |
+
+**Returns:** <code>Promise&lt;{ data: any; }&gt;</code>
+
+--------------------
+
+
+### doGet(...)
+
+```typescript
+doGet(options: { url: string; params: any; headers: any; }) => Promise<{ data: any; }>
+```
+
+| Param         | Type                                                     |
+| ------------- | -------------------------------------------------------- |
+| **`options`** | <code>{ url: string; params: any; headers: any; }</code> |
+
+**Returns:** <code>Promise&lt;{ data: any; }&gt;</code>
+
+--------------------
+
+
+### initialize(...)
+
+```typescript
+initialize(options: { hostname: string; certPath: string; }) => Promise<{ data: any; }>
+```
+
+| Param         | Type                                                 |
+| ------------- | ---------------------------------------------------- |
+| **`options`** | <code>{ hostname: string; certPath: string; }</code> |
 
 **Returns:** <code>Promise&lt;{ data: any; }&gt;</code>
 
