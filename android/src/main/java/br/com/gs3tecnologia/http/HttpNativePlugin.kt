@@ -13,6 +13,7 @@ import java.io.IOException
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 import java.util.*
+import java.util.concurrent.TimeUnit
 
 @CapacitorPlugin(name = "HttpNative")
 class HttpNativePlugin : Plugin() {
