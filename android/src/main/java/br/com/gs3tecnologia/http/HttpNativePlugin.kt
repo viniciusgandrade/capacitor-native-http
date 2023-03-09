@@ -43,6 +43,10 @@ class HttpNativePlugin : Plugin() {
       .add(hostname, "sha256/$cert")
       .build()
     val httpClient: OkHttpClient = OkHttpClient.Builder()
+      .connectTimeout(30, TimeUnit.SECONDS)
+      .readTimeout(30, TimeUnit.SECONDS)
+      .writeTimeout(30, TimeUnit.SECONDS)
+      .callTimeout(30, TimeUnit.SECONDS)
       .certificatePinner(certificatePinner)
       .build()
 
