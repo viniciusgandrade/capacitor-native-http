@@ -27,11 +27,11 @@ public class HttpNativePlugin: CAPPlugin {
 
         let contentType = _headers["Content-Type"] as? String ?? "application/json"
 
-        _headers.removeValue(forKey: "Content-Type");
+        _headers.removeValue(forKey: "Content-Type")
 
-        var encoder: ParameterEncoder = JSONParameterEncoder.default;
-        if (contentType == "application/x-www-form-urlencoded") {
-            encoder = URLEncodedFormParameterEncoder.default;
+        var encoder: ParameterEncoder = JSONParameterEncoder.default
+        if (contentType == "application/x-www-form-urlencoded" || method == "GET") {
+            encoder = URLEncodedFormParameterEncoder.default
         }
         
         var headers: HTTPHeaders = [];
@@ -49,22 +49,22 @@ public class HttpNativePlugin: CAPPlugin {
         for (_, option) in _headers.enumerated() {
             headers.add(name: option.key, value: option.value as! String)
         }
-        loadCookies();
-        let cookies = HTTPCookieStorage.shared.cookies(for: URL(string: "itspay.com.br")!) ?? []
-        let cookieValues = cookies.compactMap({ $0.value }).joined(separator: "; ")
-        if (!cookies.isEmpty) {
-            headers.add(name: "Cookie", value: cookieValues);
+        let cookie = UserDefaults.standard.string(forKey: "savedCookies") ?? "";
+        if (!cookie.isEmpty && !url.contains("oauth2") && !url.contains("auth")) {
+            headers.add(name: "Cookie", value: cookie);
         }
         AF.request(url, method: HTTPMethod(rawValue: method), parameters: parameters, encoder: encoder, headers: headers)
             .response { response in
+                print ("response: \(response.debugDescription)")
+                if let curlRequest = response.request?.debugDescription {
+                    print("cURL command: \(curlRequest)")
+                }
                 if let headerFields = response.response?.allHeaderFields as? [String: String], let url = response.request?.url {
-                    let cookies = HTTPCookie.cookies(withResponseHeaderFields: headerFields, for: URL(string: "itspay.com.br")!)
-                    var cookieArray = [[HTTPCookiePropertyKey: Any]]()
-                    for cookie in cookies {
-                       cookieArray.append(cookie.properties!)
+                    let cookie = headerFields["Set-Cookie"];
+                    if (cookie != nil && !(cookie?.isEmpty ?? true)) {
+                        UserDefaults.standard.set(cookie    , forKey: "savedCookies")
+                        UserDefaults.standard.synchronize()
                     }
-                    UserDefaults.standard.set(cookieArray, forKey: "savedCookies")
-                    UserDefaults.standard.synchronize()
                 }
                 switch response.result {
                     case .success(let data):
@@ -84,14 +84,5 @@ public class HttpNativePlugin: CAPPlugin {
                         ])
                 }
             }
-    }
-    
-    func loadCookies() {
-        guard let cookieArray = UserDefaults.standard.array(forKey: "savedCookies") as? [[HTTPCookiePropertyKey: Any]] else { return }
-        for cookieProperties in cookieArray {
-            if let cookie = HTTPCookie(properties: cookieProperties) {
-                HTTPCookieStorage.shared.setCookie(cookie)
-            }
-        }
     }
 }
