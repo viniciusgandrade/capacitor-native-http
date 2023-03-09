@@ -13,8 +13,7 @@ npx cap sync
 
 <docgen-index>
 
-* [`doPost(...)`](#dopost)
-* [`doGet(...)`](#doget)
+* [`request(...)`](#request)
 * [`initialize(...)`](#initialize)
 
 </docgen-index>
@@ -22,30 +21,15 @@ npx cap sync
 <docgen-api>
 <!--Update the source file JSDoc comments and rerun docgen to update the docs below-->
 
-### doPost(...)
+### request(...)
 
 ```typescript
-doPost(options: { url: string; data: any; headers: any; }) => Promise<{ data: any; }>
+request(options: { method: string; url: string; params?: any; data?: any; headers?: any; }) => Promise<{ data: any; }>
 ```
 
-| Param         | Type                                                   |
-| ------------- | ------------------------------------------------------ |
-| **`options`** | <code>{ url: string; data: any; headers: any; }</code> |
-
-**Returns:** <code>Promise&lt;{ data: any; }&gt;</code>
-
---------------------
-
-
-### doGet(...)
-
-```typescript
-doGet(options: { url: string; params: any; headers: any; }) => Promise<{ data: any; }>
-```
-
-| Param         | Type                                                     |
-| ------------- | -------------------------------------------------------- |
-| **`options`** | <code>{ url: string; params: any; headers: any; }</code> |
+| Param         | Type                                                                                   |
+| ------------- | -------------------------------------------------------------------------------------- |
+| **`options`** | <code>{ method: string; url: string; params?: any; data?: any; headers?: any; }</code> |
 
 **Returns:** <code>Promise&lt;{ data: any; }&gt;</code>
 
