@@ -50,6 +50,11 @@ public class HttpNativePlugin: CAPPlugin {
             headers.add(name: option.key, value: option.value as! String)
         }
         loadCookies();
+        let cookies = HTTPCookieStorage.shared.cookies(for: URL(string: "itspay.com.br")!) ?? []
+        let cookieValues = cookies.compactMap({ $0.value }).joined(separator: "; ")
+        if (!cookies.isEmpty) {
+            headers.add(name: "Cookie", value: cookieValues);
+        }
         AF.request(url, method: HTTPMethod(rawValue: method), parameters: parameters, encoder: encoder, headers: headers)
             .response { response in
                 if let headerFields = response.response?.allHeaderFields as? [String: String], let url = response.request?.url {
