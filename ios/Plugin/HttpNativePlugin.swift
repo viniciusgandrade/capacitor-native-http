@@ -35,7 +35,7 @@ public class HttpNativePlugin: CAPPlugin {
         self.session = Session(configuration: configuration, serverTrustManager: serverTrustManager)
         call.resolve();
     }
-    
+
     @objc func request(_ call: CAPPluginCall) {
         let url = call.getString("url") ?? ""
         let method = call.getString("method") ?? "POST";
@@ -43,22 +43,22 @@ public class HttpNativePlugin: CAPPlugin {
         if (data.isEmpty) {
             data = call.getObject("params") ?? [:]
         }
-        
+
         var _headers = call.getObject("headers") ?? [:]
-        
+
         let contentType = _headers["Content-Type"] as? String ?? "application/json"
-        
+
         _headers.removeValue(forKey: "Content-Type")
-        
+
         var encoder: ParameterEncoder = JSONParameterEncoder.default
         if (contentType == "application/x-www-form-urlencoded" || method == "GET") {
             encoder = URLEncodedFormParameterEncoder.default
         }
-        
+
         var headers: HTTPHeaders = [];
-        
+
         var parameters: [String: String] = [:];
-        
+
         for (_, option) in data.enumerated() {
             if let value = option.value as? String {
                 parameters[option.key] = value
@@ -66,7 +66,7 @@ public class HttpNativePlugin: CAPPlugin {
                 parameters[option.key] = (option.value as? NSNumber)?.stringValue
             }
         }
-        
+
         for (_, option) in _headers.enumerated() {
             headers.add(name: option.key, value: option.value as! String)
         }
@@ -76,6 +76,7 @@ public class HttpNativePlugin: CAPPlugin {
             headers.add(name: "Cookie", value: cookie);
         }
         self.session?.request(url, method: HTTPMethod(rawValue: method), parameters: parameters, encoder: encoder, headers: headers)
+            .validate(statusCode: 200..<300)
             .response { response in
                 print ("response: \(response.debugDescription)")
                 if let curlRequest = response.request?.debugDescription {
@@ -100,14 +101,14 @@ public class HttpNativePlugin: CAPPlugin {
                         ])
                     }
                 case .failure(let error):
-                    print("Error: \(error)")
-                    call.resolve([
-                        "data": error
-                    ])
+                    if let data = response.data, let errorBody = String(data: data, encoding: .utf8) {
+                        call.reject(errorBody)
+                    }
+                    print("Error: \(error.localizedDescription)")
                 }
             }
     }
-    
+
     //eg. Darwin/16.3.0
     func DarwinVersion() -> String {
         var sysinfo = utsname()
@@ -121,7 +122,7 @@ public class HttpNativePlugin: CAPPlugin {
         let version = dictionary?["CFBundleShortVersionString"] as! String
         return "CFNetwork/\(version)"
     }
-    
+
     //eg. iOS/10_1
     func deviceVersion() -> String {
         let currentDevice = UIDevice.current
