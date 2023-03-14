@@ -39,8 +39,10 @@ export const callNative = (req: any): Observable<any> => {
       ob.complete();
     }).catch((error: any) => {
       console.log('erro request!');
-      console.log(error);
-      const obj = checkJson(error.error || error.errorMessage);
+      console.log(error.message);
+      console.log(error.error);
+      console.log(error.errorMessage);
+      const obj = checkJson(error.message || error.error || error.errorMessage);
       if (typeof obj === 'string') {
         ob.error({ error: obj });
       }

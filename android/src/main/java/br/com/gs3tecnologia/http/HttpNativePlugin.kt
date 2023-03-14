@@ -33,18 +33,18 @@ class HttpNativePlugin : Plugin() {
     certPath = pluginCall.getString("certPath").toString()
     val cert = String(Base64.getEncoder().encode((loadPublicKey().encoded)))
     val certificatePinner: CertificatePinner = CertificatePinner.Builder()
-      .add(hostname, "sha256/$cert")
-      .build()
+            .add(hostname, "sha256/$cert")
+            .build()
     httpClient = pluginCall.getInt("timeout", 30)?.let {
       OkHttpClient.Builder()
-        .certificatePinner(certificatePinner)
-        .connectTimeout(it.toLong(), TimeUnit.SECONDS)
-        .readTimeout(it.toLong(), TimeUnit.SECONDS)
-        .writeTimeout(it.toLong(), TimeUnit.SECONDS)
-        .callTimeout(it.toLong(), TimeUnit.SECONDS)
-        .addNetworkInterceptor(AddCookiesInterceptor(this.context))
-        .addNetworkInterceptor(ReceivedCookiesInterceptor(this.context))
-        .build()
+              .certificatePinner(certificatePinner)
+              .connectTimeout(it.toLong(), TimeUnit.SECONDS)
+              .readTimeout(it.toLong(), TimeUnit.SECONDS)
+              .writeTimeout(it.toLong(), TimeUnit.SECONDS)
+              .callTimeout(it.toLong(), TimeUnit.SECONDS)
+              .addNetworkInterceptor(AddCookiesInterceptor(this.context))
+              .addNetworkInterceptor(ReceivedCookiesInterceptor(this.context))
+              .build()
     }!!
     pluginCall.resolve()
   }
@@ -116,12 +116,12 @@ class HttpNativePlugin : Plugin() {
       encodedUri.toURL().toString()
     } else {
       val unEncodedUrlString: String =
-        (uri.scheme + "://" + uri.authority + uri.path).toString() + (if (urlQuery != "") "?$urlQuery" else "") + if (uri.fragment != null) uri.fragment else ""
+              (uri.scheme + "://" + uri.authority + uri.path).toString() + (if (urlQuery != "") "?$urlQuery" else "") + if (uri.fragment != null) uri.fragment else ""
       URL(unEncodedUrlString).toString()
     }
 
     val request =
-      url?.let { Request.Builder().url(it).headers(builder.build()).method("GET", null).build() }
+            url?.let { Request.Builder().url(it).headers(builder.build()).method("GET", null).build() }
 
     makeRequest(request, pluginCall);
   }
@@ -164,6 +164,10 @@ class HttpNativePlugin : Plugin() {
         override fun onResponse(call: Call, response: Response) {
           val responseBody = response.body ?: throw IOException("Response body is null")
           val ret = JSObject()
+          if (response.code >= 300) {
+            pluginCall.reject("{\"error\":" + responseBody.string() + "}")
+            return;
+          }
           ret.put("data", responseBody.string())
           pluginCall.resolve(ret)
         }
