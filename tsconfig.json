@@ -6,6 +6,7 @@
     "inlineSources": true,
     "lib": ["dom", "es2017"],
     "module": "esnext",
+    "experimentalDecorators": true,
     "moduleResolution": "node",
     "noFallthroughCasesInSwitch": true,
     "noUnusedLocals": true,

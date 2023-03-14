@@ -59,8 +59,9 @@ class HttpNativePlugin : Plugin() {
       doPost(pluginCall);
     } else if (method == "PUT") {
       doPut(pluginCall);
+    } else {
+      throw Exception("Método não implementado: $method")
     }
-    throw Exception("Método não implementado: $method")
   }
 
   private fun doPut(pluginCall: PluginCall) {
@@ -80,7 +81,7 @@ class HttpNativePlugin : Plugin() {
     var url = pluginCall.getString("url").toString()
     val jsonHeaders = pluginCall.getObject("headers")
     val params = pluginCall.getObject("params")
-    var encodeUrlParams = jsonHeaders.get("Content-Type");
+    var encodeUrlParams = jsonHeaders.getString("Content-Type", "");
     val keys = params.keys();
     val urlQueryBuilder = StringBuilder()
     val builder = buildHeaders(jsonHeaders);
@@ -135,7 +136,7 @@ class HttpNativePlugin : Plugin() {
     val requestBodyString = pluginCall.getString("data")
     var request: Request? = null;
 
-    if (jsonHeaders.getString("Content-Type") != "application/x-www-form-urlencoded") {
+    if (jsonHeaders.getString("Content-Type", "") != "application/x-www-form-urlencoded") {
       val payload = data.toString();
       val requestBody = payload.toRequestBody()
       request = url?.let { Request.Builder().url(it).headers(builder.build()).method("POST", requestBody).build() }
