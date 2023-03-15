@@ -57,16 +57,6 @@ public class HttpNativePlugin: CAPPlugin {
 
         var headers: HTTPHeaders = [];
 
-        var parameters: [String: String] = [:];
-
-        for (_, option) in data.enumerated() {
-            if let value = option.value as? String {
-                parameters[option.key] = value
-            } else {
-                parameters[option.key] = (option.value as? NSNumber)?.stringValue
-            }
-        }
-
         for (_, option) in _headers.enumerated() {
             headers.add(name: option.key, value: option.value as! String)
         }
@@ -75,7 +65,36 @@ public class HttpNativePlugin: CAPPlugin {
         if (!cookie.isEmpty && !url.contains("oauth2") && !url.contains("auth")) {
             headers.add(name: "Cookie", value: cookie);
         }
-        self.session?.request(url, method: HTTPMethod(rawValue: method), parameters: parameters, encoder: encoder, headers: headers)
+
+        var request: DataRequest?;
+
+        if (method == "GET") {
+            var parameters: [String: String] = [:];
+
+            for (_, option) in data.enumerated() {
+                if let value = option.value as? String {
+                    parameters[option.key] = value
+                } else {
+                    parameters[option.key] = (option.value as? NSNumber)?.stringValue
+                }
+            }
+            request = self.session?.request(url, method: HTTPMethod(rawValue: method), parameters: parameters, encoder: encoder, headers: headers);
+        } else {
+            guard let jsonData = try? JSONSerialization.data(withJSONObject: data, options: []) else {
+                call.reject("JSON inválido")
+                return;
+            }
+            let url = URL(string: url)!
+            var urlRequest = URLRequest(url: url)
+            urlRequest.httpMethod = method
+            urlRequest.headers = headers
+            urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            urlRequest.httpBody = jsonData
+
+            request = self.session?.request(urlRequest)
+        }
+
+        request?
             .validate(statusCode: 200..<300)
             .response { response in
                 print ("response: \(response.debugDescription)")
