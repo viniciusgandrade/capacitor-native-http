@@ -26,14 +26,24 @@ public class HttpNativePlugin: CAPPlugin {
             performDefaultValidation: true,
             validateHost: true
         )
-        let evaluators: [String: ServerTrustEvaluating] = [
-            call.getString("hostname", ""): serverTrustEvaluator
-        ]
-        let configuration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = TimeInterval(self.timeoutInterval)
-        let serverTrustManager = ServerTrustManager(evaluators: evaluators)
-        self.session = Session(configuration: configuration, serverTrustManager: serverTrustManager)
-        call.resolve();
+
+        if let hostNames = call.getArray("hostname") {
+            var evaluators: [String: ServerTrustEvaluating] = [:]
+            for host in hostNames {
+                if ((host as! String).contains("brbcard.com.br")) {
+                    evaluators[host as! String] = serverTrustEvaluator
+                } else {
+                    evaluators[host as! String] = DefaultTrustEvaluator()
+                }
+            }
+            let configuration = URLSessionConfiguration.default
+            configuration.timeoutIntervalForRequest = TimeInterval(self.timeoutInterval)
+            let serverTrustManager = ServerTrustManager(evaluators: evaluators)
+            self.session = Session(configuration: configuration, serverTrustManager: serverTrustManager)
+            call.resolve();
+        } else {
+            call.reject("Erro init")
+        }
     }
 
     @objc func request(_ call: CAPPluginCall) {

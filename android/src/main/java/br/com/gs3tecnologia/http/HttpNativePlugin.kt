@@ -29,12 +29,20 @@ class HttpNativePlugin : Plugin() {
   @RequiresApi(Build.VERSION_CODES.O)
   @PluginMethod
   fun initialize(pluginCall: PluginCall) {
-    val hostname = pluginCall.getString("hostname").toString()
+    val hosts = pluginCall.getArray("hostname")
     certPath = pluginCall.getString("certPath").toString()
     val cert = String(Base64.getEncoder().encode((loadPublicKey().encoded)))
-    val certificatePinner: CertificatePinner = CertificatePinner.Builder()
-            .add(hostname, "sha256/$cert")
-            .build()
+    val builder = CertificatePinner.Builder()
+    hosts.toList<String>().forEach { host ->
+      var cert = "sha256/$cert"
+      if (host.indexOf("brbcard.com.br") != -1) {
+        cert = "*"
+      }
+      builder.add(host, cert)
+    }
+
+    val certificatePinner: CertificatePinner = builder.build()
+
     httpClient = pluginCall.getInt("timeout", 30)?.let {
       OkHttpClient.Builder()
               .certificatePinner(certificatePinner)
