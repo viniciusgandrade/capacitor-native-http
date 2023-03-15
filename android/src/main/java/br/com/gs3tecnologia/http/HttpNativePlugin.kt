@@ -34,11 +34,11 @@ class HttpNativePlugin : Plugin() {
     val cert = String(Base64.getEncoder().encode((loadPublicKey().encoded)))
     val builder = CertificatePinner.Builder()
     hosts.toList<String>().forEach { host ->
-      var cert = "sha256/$cert"
       if (host.indexOf("brbcard.com.br") != -1) {
-        cert = "*"
+        builder.add(host)
+      } else {
+        builder.add(host, "sha256/$cert")
       }
-      builder.add(host, cert)
     }
 
     val certificatePinner: CertificatePinner = builder.build()
