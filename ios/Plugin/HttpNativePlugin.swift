@@ -132,8 +132,16 @@ public class HttpNativePlugin: CAPPlugin {
                 case .failure(let error):
                     if let data = response.data, let errorBody = String(data: data, encoding: .utf8) {
                         call.reject(errorBody)
+                    } else {
+                        if let statusCode = response.response?.statusCode {
+                            // Handle validation failure due to status code outside the acceptable range
+                            print("Validation error: Unacceptable status code \(statusCode)")
+                            call.reject("{\"status\":\"ko\", \"msg\":\"Erro ao processar requisição.\",\"status\":\(statusCode)}");
+                        } else {
+                            call.reject("{\"status\":\"ko\", \"msg\":\(error.localizedDescription),\"status\":-1}");
+                            print("Request error: \(error.localizedDescription)")
+                        }
                     }
-                    print("Error: \(error.localizedDescription)")
                 }
             }
     }
