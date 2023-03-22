@@ -173,7 +173,11 @@ class HttpNativePlugin : Plugin() {
           val responseBody = response.body ?: throw IOException("Response body is null")
           val ret = JSObject()
           if (response.code >= 300) {
-            pluginCall.reject("{\"error\":" + responseBody.string() + "}")
+            var body = responseBody.string();
+            if (body == null || body.isEmpty()) {
+              body = "{\"msg\": \"Erro ao processar requisição\"}"
+            }
+            pluginCall.reject(body)
             return;
           }
           ret.put("data", responseBody.string())
