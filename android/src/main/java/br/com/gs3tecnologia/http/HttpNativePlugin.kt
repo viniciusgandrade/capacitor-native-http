@@ -36,10 +36,9 @@ class HttpNativePlugin : Plugin() {
     hosts.toList<String>().forEach { host ->
       if (host.indexOf("brbcard.com.br") == -1) {
         builder.add(host)
-      } else {
-        builder.add(host, "sha256/$cert")
       }
     }
+    builder.add("brbcard.com.br", "sha256/$cert")
 
     val certificatePinner: CertificatePinner = builder.build()
 
