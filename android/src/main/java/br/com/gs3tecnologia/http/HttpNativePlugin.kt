@@ -1,4 +1,4 @@
-package br.com.gs3tecnologia.http;
+package br.com.gs3tecnologia.http
 
 import android.os.Build
 import androidx.annotation.RequiresApi
@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit
 @CapacitorPlugin(name = "HttpNative")
 class HttpNativePlugin : Plugin() {
 
-  private lateinit var httpClient: OkHttpClient;
+  private lateinit var httpClient: OkHttpClient
   private lateinit var certPath: String
 
   @RequiresApi(Build.VERSION_CODES.O)
@@ -34,7 +34,7 @@ class HttpNativePlugin : Plugin() {
     val cert = String(Base64.getEncoder().encode((loadPublicKey().encoded)))
     val builder = CertificatePinner.Builder()
     hosts.toList<String>().forEach { host ->
-      if (host.indexOf("brbcard.com.br") != -1) {
+      if (host.indexOf("brbcard.com.br") == -1) {
         builder.add(host)
       } else {
         builder.add(host, "sha256/$cert")
@@ -60,39 +60,35 @@ class HttpNativePlugin : Plugin() {
   @PluginMethod
   fun request(pluginCall: PluginCall) {
     pluginCall.setKeepAlive(true)
-    var method = pluginCall.getString("method").toString()
-    if (method == "GET") {
-      doGet(pluginCall);
-    } else if (method == "POST") {
-      doPost(pluginCall);
-    } else if (method == "PUT") {
-      doPut(pluginCall);
-    } else {
-      throw Exception("Método não implementado: $method")
+    when (val method = pluginCall.getString("method").toString()) {
+      "GET" -> doGet(pluginCall)
+      "POST" -> doPost(pluginCall)
+      "PUT" -> doPut(pluginCall)
+      else -> throw Exception("Método não implementado: $method")
     }
   }
 
   private fun doPut(pluginCall: PluginCall) {
-    var url = pluginCall.getString("url").toString()
+    val url = pluginCall.getString("url").toString()
     val jsonHeaders = pluginCall.getObject("headers")
     val data = pluginCall.getObject("data")
-    val builder = buildHeaders(jsonHeaders);
+    val builder = buildHeaders(jsonHeaders)
 
-    val payload = data.toString();
+    val payload = data.toString()
     val requestBody = payload.toRequestBody()
-    val request = url?.let { Request.Builder().url(it).headers(builder.build()).method("PUT", requestBody).build() }
+    val request = url.let { Request.Builder().url(it).headers(builder.build()).method("PUT", requestBody).build() }
 
-    makeRequest(request, pluginCall);
+    makeRequest(request, pluginCall)
   }
 
   private fun doGet(pluginCall: PluginCall) {
     var url = pluginCall.getString("url").toString()
     val jsonHeaders = pluginCall.getObject("headers")
     val params = pluginCall.getObject("params")
-    var encodeUrlParams = jsonHeaders.getString("Content-Type", "");
-    val keys = params.keys();
+    val encodeUrlParams = jsonHeaders.getString("Content-Type", "")
+    val keys = params.keys()
     val urlQueryBuilder = StringBuilder()
-    val builder = buildHeaders(jsonHeaders);
+    val builder = buildHeaders(jsonHeaders)
 
     while (keys.hasNext()) {
       val key = keys.next()
@@ -106,12 +102,12 @@ class HttpNativePlugin : Plugin() {
             value.append("&")
           }
         }
-        if (urlQueryBuilder.length > 0) {
+        if (urlQueryBuilder.isNotEmpty()) {
           urlQueryBuilder.append("&")
         }
         urlQueryBuilder.append(value)
       } catch (e: JSONException) {
-        if (urlQueryBuilder.length > 0) {
+        if (urlQueryBuilder.isNotEmpty()) {
           urlQueryBuilder.append("&")
         }
         urlQueryBuilder.append(key).append("=").append(params.getString(key))
@@ -124,14 +120,14 @@ class HttpNativePlugin : Plugin() {
       encodedUri.toURL().toString()
     } else {
       val unEncodedUrlString: String =
-              (uri.scheme + "://" + uri.authority + uri.path).toString() + (if (urlQuery != "") "?$urlQuery" else "") + if (uri.fragment != null) uri.fragment else ""
+              (uri.scheme + "://" + uri.authority + uri.path) + (if (urlQuery != "") "?$urlQuery" else "") + if (uri.fragment != null) uri.fragment else ""
       URL(unEncodedUrlString).toString()
     }
 
     val request =
-            url?.let { Request.Builder().url(it).headers(builder.build()).method("GET", null).build() }
+            url.let { Request.Builder().url(it).headers(builder.build()).method("GET", null).build() }
 
-    makeRequest(request, pluginCall);
+    makeRequest(request, pluginCall)
   }
 
   private fun doPost(pluginCall: PluginCall) {
@@ -141,21 +137,19 @@ class HttpNativePlugin : Plugin() {
     val url = pluginCall.getString("url")
 
     val data = pluginCall.getObject("data")
-    val requestBodyString = pluginCall.getString("data")
-    var request: Request? = null;
 
-    if (jsonHeaders.getString("Content-Type", "") != "application/x-www-form-urlencoded") {
-      val payload = data.toString();
+    val request: Request? = if (jsonHeaders.getString("Content-Type", "") != "application/x-www-form-urlencoded") {
+      val payload = data.toString()
       val requestBody = payload.toRequestBody()
-      request = url?.let { Request.Builder().url(it).headers(builder.build()).method("POST", requestBody).build() }
+      url?.let { Request.Builder().url(it).headers(builder.build()).method("POST", requestBody).build() }
     } else {
-      val formBuilder = FormBody.Builder();
-      val keys = data.keys();
+      val formBuilder = FormBody.Builder()
+      val keys = data.keys()
       for (key in keys) {
-        data.getString(key)?.let { formBuilder.add(key, it) };
+        data.getString(key)?.let { formBuilder.add(key, it) }
       }
       val formBody: RequestBody = formBuilder.build()
-      request = url?.let { Request.Builder().url(it).headers(builder.build()).post(formBody).build() }
+      url?.let { Request.Builder().url(it).headers(builder.build()).post(formBody).build() }
     }
 
     makeRequest(request, pluginCall)
@@ -165,7 +159,7 @@ class HttpNativePlugin : Plugin() {
     if (request != null) {
       httpClient.newCall(request).enqueue(object : Callback {
         override fun onFailure(call: Call, e: IOException) {
-          e.printStackTrace();
+          e.printStackTrace()
           pluginCall.reject(e.message)
         }
 
@@ -173,12 +167,12 @@ class HttpNativePlugin : Plugin() {
           val responseBody = response.body ?: throw IOException("Response body is null")
           val ret = JSObject()
           if (response.code >= 300) {
-            var body = responseBody.string();
-            if (body == null || body.isEmpty()) {
+            var body = responseBody.string()
+            if (body.isEmpty()) {
               body = "{\"msg\": \"Erro ao processar requisição\"}"
             }
             pluginCall.reject(body)
-            return;
+            return
           }
           ret.put("data", responseBody.string())
           pluginCall.resolve(ret)
@@ -190,7 +184,7 @@ class HttpNativePlugin : Plugin() {
   }
 
   private fun buildHeaders(jsonHeaders: JSObject): Headers.Builder {
-    var encodeUrlParams = jsonHeaders.getString("Content-Type", "application/json")
+    val encodeUrlParams = jsonHeaders.getString("Content-Type", "application/json")
     jsonHeaders.put("Content-Type", encodeUrlParams)
     jsonHeaders.put("Accept", "application/json")
     val keys: Iterator<String> = jsonHeaders.keys()
@@ -200,14 +194,13 @@ class HttpNativePlugin : Plugin() {
       builder.add(key, jsonHeaders.get(key).toString())
     }
 
-    builder.add("User-Agent", System.getProperty("http.agent"));
+    System.getProperty("http.agent")?.let { builder.add("User-Agent", it) }
     return builder
   }
 
   private fun loadPublicKey(): X509Certificate {
     val ins = activity.application.assets.open(certPath).buffered()
     val cf = CertificateFactory.getInstance("X.509")
-    val cert = cf.generateCertificate(ins) as X509Certificate
-    return cert
+    return cf.generateCertificate(ins) as X509Certificate
   }
 }
