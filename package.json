@@ -1,6 +1,6 @@
 {
   "name": "capacitor-native-http",
-  "version": "1.0.20",
+  "version": "1.0.21",
   "description": "Plugin capacitor para requisições nativas",
   "main": "dist/plugin.cjs.js",
   "module": "dist/esm/index.js",

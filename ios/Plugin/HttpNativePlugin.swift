@@ -70,7 +70,7 @@ public class HttpNativePlugin: CAPPlugin {
         for (_, option) in _headers.enumerated() {
             headers.add(name: option.key, value: option.value as! String)
         }
-        headers.add(name: "User-Agent", value: "\(deviceName()) \(deviceVersion()) \(CFNetworkVersion()) \(DarwinVersion())")
+        headers.add(name: "User-Agent", value: "\(deviceName()) \(deviceVersion()) \(DarwinVersion())")
         let cookie = UserDefaults.standard.string(forKey: "savedCookies") ?? "";
         if (!cookie.isEmpty && !url.contains("oauth2") && !url.contains("auth")) {
             headers.add(name: "Cookie", value: cookie);
