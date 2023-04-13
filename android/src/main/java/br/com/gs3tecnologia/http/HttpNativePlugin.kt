@@ -3,6 +3,7 @@ package br.com.gs3tecnologia.http
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.core.net.toUri
+import androidx.preference.PreferenceManager
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
@@ -31,6 +32,10 @@ class HttpNativePlugin : Plugin() {
   fun initialize(pluginCall: PluginCall) {
     val hosts = pluginCall.getArray("hostname")
     certPath = pluginCall.getString("certPath").toString()
+    var cookie = pluginCall.getString("cookie", "")
+    if (cookie == null) {
+      cookie = ""
+    }
     val cert = String(Base64.getEncoder().encode((loadPublicKey().encoded)))
     val builder = CertificatePinner.Builder()
     hosts.toList<String>().forEach { host ->
@@ -49,10 +54,16 @@ class HttpNativePlugin : Plugin() {
               .readTimeout(it.toLong(), TimeUnit.SECONDS)
               .writeTimeout(it.toLong(), TimeUnit.SECONDS)
               .callTimeout(it.toLong(), TimeUnit.SECONDS)
-              .addNetworkInterceptor(AddCookiesInterceptor(this.context))
+              .addNetworkInterceptor(AddCookiesInterceptor(this.context, cookie))
               .addNetworkInterceptor(ReceivedCookiesInterceptor(this.context))
               .build()
     }!!
+    val preferences = PreferenceManager.getDefaultSharedPreferences(context).getStringSet(
+            AddCookiesInterceptor.PREF_COOKIES, HashSet<String>()
+    ) as HashSet<String>
+    if (preferences != null && preferences.isNotEmpty()) {
+      preferences.clear()
+    }
     pluginCall.resolve()
   }
 
@@ -75,7 +86,9 @@ class HttpNativePlugin : Plugin() {
 
     val payload = data.toString()
     val requestBody = payload.toRequestBody()
-    val request = url.let { Request.Builder().url(it).headers(builder.build()).method("PUT", requestBody).build() }
+    val request = url.let {
+      Request.Builder().url(it).headers(builder.build()).method("PUT", requestBody).build()
+    }
 
     makeRequest(request, pluginCall)
   }
@@ -137,19 +150,22 @@ class HttpNativePlugin : Plugin() {
 
     val data = pluginCall.getObject("data")
 
-    val request: Request? = if (jsonHeaders.getString("Content-Type", "") != "application/x-www-form-urlencoded") {
-      val payload = data.toString()
-      val requestBody = payload.toRequestBody()
-      url?.let { Request.Builder().url(it).headers(builder.build()).method("POST", requestBody).build() }
-    } else {
-      val formBuilder = FormBody.Builder()
-      val keys = data.keys()
-      for (key in keys) {
-        data.getString(key)?.let { formBuilder.add(key, it) }
-      }
-      val formBody: RequestBody = formBuilder.build()
-      url?.let { Request.Builder().url(it).headers(builder.build()).post(formBody).build() }
-    }
+    val request: Request? =
+            if (jsonHeaders.getString("Content-Type", "") != "application/x-www-form-urlencoded") {
+              val payload = data.toString()
+              val requestBody = payload.toRequestBody()
+              url?.let {
+                Request.Builder().url(it).headers(builder.build()).method("POST", requestBody).build()
+              }
+            } else {
+              val formBuilder = FormBody.Builder()
+              val keys = data.keys()
+              for (key in keys) {
+                data.getString(key)?.let { formBuilder.add(key, it) }
+              }
+              val formBody: RequestBody = formBuilder.build()
+              url?.let { Request.Builder().url(it).headers(builder.build()).post(formBody).build() }
+            }
 
     makeRequest(request, pluginCall)
   }
@@ -173,7 +189,12 @@ class HttpNativePlugin : Plugin() {
             pluginCall.reject(body)
             return
           }
-          ret.put("data", responseBody.string())
+          val rawBody = responseBody.string();
+          if (rawBody == null || rawBody.trim().isEmpty()) {
+            ret.put("data", "{}")
+          } else {
+            ret.put("data", rawBody)
+          }
           pluginCall.resolve(ret)
         }
       })

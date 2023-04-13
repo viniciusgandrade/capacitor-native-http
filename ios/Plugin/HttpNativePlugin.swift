@@ -11,6 +11,7 @@ import Capacitor
 public class HttpNativePlugin: CAPPlugin {
     var session: Session?
     var timeoutInterval = 30
+    var cookie = ""
     @objc func initialize(_ call: CAPPluginCall) {
         self.timeoutInterval = call.getInt("timeout", 30)
         guard let certificateURL = Bundle.main.url(forResource: call.getString("certPath", ""), withExtension: nil),
@@ -19,6 +20,9 @@ public class HttpNativePlugin: CAPPlugin {
             call.reject("Falha SSL Pinning")
             return
         }
+        self.cookie = call.getString("cookie", "")
+        UserDefaults.standard.set("", forKey: "savedCookies")
+        UserDefaults.standard.synchronize()
         let pinnedCertificates: [SecCertificate] = [SecCertificateCreateWithData(nil, certificateData as CFData)!]
         let serverTrustEvaluator = PinnedCertificatesTrustEvaluator(
             certificates: pinnedCertificates,
@@ -113,21 +117,36 @@ public class HttpNativePlugin: CAPPlugin {
                 }
                 if let headerFields = response.response?.allHeaderFields as? [String: String] {
                     let cookie = headerFields["Set-Cookie"];
-                    if (cookie != nil && !(cookie?.isEmpty ?? true)) {
-                        UserDefaults.standard.set(cookie    , forKey: "savedCookies")
-                        UserDefaults.standard.synchronize()
+                    if (self.cookie.isEmpty) {
+                        if (cookie != nil && !(cookie?.isEmpty ?? true)) {
+                            UserDefaults.standard.set(cookie    , forKey: "savedCookies")
+                            UserDefaults.standard.synchronize()
+                        }
+                    } else if (cookie != nil) {
+                        let cookies = cookie?.split(separator: ",")
+                        let jsessionid = cookies?.first(where: { $0.contains(self.cookie) })
+                        if (jsessionid != nil && !jsessionid!.isEmpty) {
+                            UserDefaults.standard.set(jsessionid?.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "savedCookies")
+                            UserDefaults.standard.synchronize()
+                        }
                     }
                 }
                 switch response.result {
                 case .success(let data):
-                    if let stringValue = String(data: data!, encoding: .utf8) {
-                        call.resolve([
-                            "data": stringValue
-                        ])
-                    } else {
+                    if (data == nil) {
                         call.resolve([
                             "data": "{}"
                         ])
+                    } else {
+                        if let stringValue = String(data: data!, encoding: .utf8) {
+                            call.resolve([
+                                "data": stringValue
+                            ])
+                        } else {
+                            call.resolve([
+                                "data": "{}"
+                            ])
+                        }
                     }
                 case .failure(let error):
                     if let data = response.data, let errorBody = String(data: data, encoding: .utf8) {

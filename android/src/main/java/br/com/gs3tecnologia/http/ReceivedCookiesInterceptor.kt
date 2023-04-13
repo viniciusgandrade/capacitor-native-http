@@ -19,7 +19,7 @@ class ReceivedCookiesInterceptor(context: Context) : Interceptor {
         val originalResponse: Response = chain.proceed(chain.request())
         if (!originalResponse.headers("Set-Cookie").isEmpty()) {
             val cookies = PreferenceManager.getDefaultSharedPreferences(context)
-                .getStringSet("PREF_COOKIES", HashSet()) as HashSet<String>?
+                    .getStringSet("PREF_COOKIES", HashSet()) as HashSet<String>?
             for (header in originalResponse.headers("Set-Cookie")) {
                 cookies!!.add(header)
             }
