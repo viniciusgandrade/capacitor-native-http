@@ -3,15 +3,12 @@ import Security
 import Foundation
 import Capacitor
 
-/**
- * Please read the Capacitor iOS Plugin Development Guide
- * here: https://capacitorjs.com/docs/plugins/ios
- */
 @objc(HttpNativePlugin)
 public class HttpNativePlugin: CAPPlugin {
     var session: Session?
     var timeoutInterval = 30
-    var cookie = ""
+    var addInterceptor = ""
+    var receivedInterceptor = ""
     @objc func initialize(_ call: CAPPluginCall) {
         self.timeoutInterval = call.getInt("timeout", 30)
         guard let certificateURL = Bundle.main.url(forResource: call.getString("certPath", ""), withExtension: nil),
@@ -20,7 +17,9 @@ public class HttpNativePlugin: CAPPlugin {
             call.reject("Falha SSL Pinning")
             return
         }
-        self.cookie = call.getString("cookie", "")
+        self.addInterceptor = call.getString("addInterceptor", "")
+        self.receivedInterceptor = call.getString("receivedInterceptor", "")
+
         UserDefaults.standard.set("", forKey: "savedCookies")
         UserDefaults.standard.synchronize()
         let pinnedCertificates: [SecCertificate] = [SecCertificateCreateWithData(nil, certificateData as CFData)!]
@@ -76,8 +75,16 @@ public class HttpNativePlugin: CAPPlugin {
         }
         headers.add(name: "User-Agent", value: "\(deviceName()) \(deviceVersion()) \(DarwinVersion())")
         let cookie = UserDefaults.standard.string(forKey: "savedCookies") ?? "";
-        if (!cookie.isEmpty && !url.contains("oauth2") && !url.contains("auth")) {
-            headers.add(name: "Cookie", value: cookie);
+        if (!cookie.isEmpty && !url.contains("/oauth2") && !url.contains("/auth")) {
+            if(self.addInterceptor.contains("AddJSessionIDCookieInterceptor")) {
+                let cookies = cookie.split(separator: ",")
+                let jsessionid = cookies.first(where: { $0.contains("JSESSIONID") })
+                if (jsessionid != nil && !jsessionid!.isEmpty) {
+                    headers.add(name: "Cookie", value: jsessionid?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "");
+                }
+            } else {
+                headers.add(name: "Cookie", value: cookie);
+            }
         }
 
         var request: DataRequest?;
@@ -117,18 +124,12 @@ public class HttpNativePlugin: CAPPlugin {
                 }
                 if let headerFields = response.response?.allHeaderFields as? [String: String] {
                     let cookie = headerFields["Set-Cookie"];
-                    if (self.cookie.isEmpty) {
-                        if (cookie != nil && !(cookie?.isEmpty ?? true)) {
-                            UserDefaults.standard.set(cookie    , forKey: "savedCookies")
-                            UserDefaults.standard.synchronize()
-                        }
-                    } else if (cookie != nil) {
-                        let cookies = cookie?.split(separator: ",")
-                        let jsessionid = cookies?.first(where: { $0.contains(self.cookie) })
-                        if (jsessionid != nil && !jsessionid!.isEmpty) {
-                            UserDefaults.standard.set(jsessionid?.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "savedCookies")
-                            UserDefaults.standard.synchronize()
-                        }
+                    if (self.receivedInterceptor.contains("ReceivedLoginCookiesInterceptor") && url.contains("/auth")) {
+                        UserDefaults.standard.set(cookie    , forKey: "savedCookies")
+                        UserDefaults.standard.synchronize()
+                    } else if (self.receivedInterceptor.contains("ReceivedCookiesInterceptor")) {
+                        UserDefaults.standard.set(cookie    , forKey: "savedCookies")
+                        UserDefaults.standard.synchronize()
                     }
                 }
                 switch response.result {

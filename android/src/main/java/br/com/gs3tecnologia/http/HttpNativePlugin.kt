@@ -4,6 +4,8 @@ import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.core.net.toUri
 import androidx.preference.PreferenceManager
+import br.com.gs3tecnologia.http.interceptors.AddCookiesInterceptor
+import br.com.gs3tecnologia.http.interceptors.ReceivedLoginCookiesInterceptor
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
@@ -32,10 +34,9 @@ class HttpNativePlugin : Plugin() {
   fun initialize(pluginCall: PluginCall) {
     val hosts = pluginCall.getArray("hostname")
     certPath = pluginCall.getString("certPath").toString()
-    var cookie = pluginCall.getString("cookie", "")
-    if (cookie == null) {
-      cookie = ""
-    }
+    var addInterceptor = pluginCall.getString("addInterceptor", "")
+    var receivedInterceptor = pluginCall.getString("receivedInterceptor", "")
+
     val cert = String(Base64.getEncoder().encode((loadPublicKey().encoded)))
     val builder = CertificatePinner.Builder()
     hosts.toList<String>().forEach { host ->
@@ -54,16 +55,24 @@ class HttpNativePlugin : Plugin() {
               .readTimeout(it.toLong(), TimeUnit.SECONDS)
               .writeTimeout(it.toLong(), TimeUnit.SECONDS)
               .callTimeout(it.toLong(), TimeUnit.SECONDS)
-              .addNetworkInterceptor(AddCookiesInterceptor(this.context, cookie))
-              .addNetworkInterceptor(ReceivedCookiesInterceptor(this.context))
               .build()
     }!!
-    val preferences = PreferenceManager.getDefaultSharedPreferences(context).getStringSet(
-            AddCookiesInterceptor.PREF_COOKIES, HashSet<String>()
-    ) as HashSet<String>
-    if (preferences != null && preferences.isNotEmpty()) {
-      preferences.clear()
+    if (addInterceptor!!.isNotEmpty()) {
+      addInterceptor = "br.com.gs3tecnologia.http.interceptors.$addInterceptor";
+      httpClient = httpClient.newBuilder().addInterceptor(
+              Class.forName(addInterceptor).getDeclaredConstructor(android.content.Context::class.java)
+                      .newInstance(context) as Interceptor
+      ).build();
     }
+    if (receivedInterceptor!!.isNotEmpty()) {
+      receivedInterceptor = "br.com.gs3tecnologia.http.interceptors.$receivedInterceptor";
+      httpClient = httpClient.newBuilder().addInterceptor(
+              Class.forName(receivedInterceptor).getDeclaredConstructor(android.content.Context::class.java)
+                      .newInstance(context) as Interceptor
+      ).build();
+    }
+
+    PreferenceManager.getDefaultSharedPreferences(context).edit().clear().apply()
     pluginCall.resolve()
   }
 
