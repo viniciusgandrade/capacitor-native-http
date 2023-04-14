@@ -1,4 +1,4 @@
-package br.com.gs3tecnologia.http
+package br.com.gs3tecnologia.http.interceptors
 
 import android.content.Context
 import androidx.preference.PreferenceManager

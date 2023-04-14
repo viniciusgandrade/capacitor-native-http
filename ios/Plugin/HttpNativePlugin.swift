@@ -127,7 +127,7 @@ public class HttpNativePlugin: CAPPlugin {
                     if (self.receivedInterceptor.contains("ReceivedLoginCookiesInterceptor") && url.contains("/auth")) {
                         UserDefaults.standard.set(cookie    , forKey: "savedCookies")
                         UserDefaults.standard.synchronize()
-                    } else if (self.receivedInterceptor.contains("ReceivedCookiesInterceptor")) {
+                    } else if (self.receivedInterceptor.contains("ReceivedCookiesInterceptor") && (cookie != nil && cookie!.contains("JSESSIONID"))) {
                         UserDefaults.standard.set(cookie    , forKey: "savedCookies")
                         UserDefaults.standard.synchronize()
                     }

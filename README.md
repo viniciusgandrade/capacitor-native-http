@@ -15,6 +15,7 @@ npx cap sync
 
 * [`request(...)`](#request)
 * [`initialize(...)`](#initialize)
+* [Interfaces](#interfaces)
 
 </docgen-index>
 
@@ -24,12 +25,12 @@ npx cap sync
 ### request(...)
 
 ```typescript
-request(options: { method: string; url: string; params?: any; data?: any; headers?: any; }) => Promise<{ data: any; }>
+request(options: RequestParams) => Promise<{ data: any; }>
 ```
 
-| Param         | Type                                                                                   |
-| ------------- | -------------------------------------------------------------------------------------- |
-| **`options`** | <code>{ method: string; url: string; params?: any; data?: any; headers?: any; }</code> |
+| Param         | Type                                                    |
+| ------------- | ------------------------------------------------------- |
+| **`options`** | <code><a href="#requestparams">RequestParams</a></code> |
 
 **Returns:** <code>Promise&lt;{ data: any; }&gt;</code>
 
@@ -39,15 +40,40 @@ request(options: { method: string; url: string; params?: any; data?: any; header
 ### initialize(...)
 
 ```typescript
-initialize(options: { hostname?: string[]; certPath?: string; timeout?: number; cookie?: string; }) => Promise<{ data: any; }>
+initialize(options: InitializeParams) => Promise<{ data: any; }>
 ```
 
-| Param         | Type                                                                                        |
-| ------------- | ------------------------------------------------------------------------------------------- |
-| **`options`** | <code>{ hostname?: string[]; certPath?: string; timeout?: number; cookie?: string; }</code> |
+| Param         | Type                                                          |
+| ------------- | ------------------------------------------------------------- |
+| **`options`** | <code><a href="#initializeparams">InitializeParams</a></code> |
 
 **Returns:** <code>Promise&lt;{ data: any; }&gt;</code>
 
 --------------------
+
+
+### Interfaces
+
+
+#### RequestParams
+
+| Prop          | Type                |
+| ------------- | ------------------- |
+| **`method`**  | <code>string</code> |
+| **`url`**     | <code>string</code> |
+| **`params`**  | <code>any</code>    |
+| **`data`**    | <code>any</code>    |
+| **`headers`** | <code>any</code>    |
+
+
+#### InitializeParams
+
+| Prop                      | Type                  |
+| ------------------------- | --------------------- |
+| **`hostname`**            | <code>string[]</code> |
+| **`certPath`**            | <code>string</code>   |
+| **`timeout`**             | <code>number</code>   |
+| **`addInterceptor`**      | <code>string</code>   |
+| **`receivedInterceptor`** | <code>string</code>   |
 
 </docgen-api>
