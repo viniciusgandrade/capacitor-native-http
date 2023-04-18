@@ -49,6 +49,12 @@ public class HttpNativePlugin: CAPPlugin {
         }
     }
 
+    @objc func clearCookie(_ call: CAPPluginCall) {
+        UserDefaults.standard.set("", forKey: "savedCookies")
+        UserDefaults.standard.synchronize()
+        call.resolve();
+    }
+
     @objc func request(_ call: CAPPluginCall) {
         let url = call.getString("url") ?? ""
         let method = call.getString("method") ?? "POST";

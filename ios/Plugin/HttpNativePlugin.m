@@ -6,4 +6,5 @@
 CAP_PLUGIN(HttpNativePlugin, "HttpNative",
            CAP_PLUGIN_METHOD(initialize, CAPPluginReturnPromise);
            CAP_PLUGIN_METHOD(request, CAPPluginReturnPromise);
+           CAP_PLUGIN_METHOD(clearCookie, CAPPluginReturnPromise);
 )

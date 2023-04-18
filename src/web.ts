@@ -12,4 +12,7 @@ export class HttpNativeWeb extends WebPlugin implements HttpNativePlugin {
     console.warn(_options);
     return Promise.resolve({ data: undefined });
   }
+  clearCookie(): Promise<any> {
+    return new Promise((resolve => resolve({} as any)));
+  }
 }

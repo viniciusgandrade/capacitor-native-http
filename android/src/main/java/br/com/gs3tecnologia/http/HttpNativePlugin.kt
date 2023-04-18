@@ -77,6 +77,12 @@ class HttpNativePlugin : Plugin() {
   }
 
   @PluginMethod
+  fun clearCookie(pluginCall: PluginCall) {
+    PreferenceManager.getDefaultSharedPreferences(context).edit().clear().apply()
+    pluginCall.resolve()
+  }
+
+  @PluginMethod
   fun request(pluginCall: PluginCall) {
     pluginCall.setKeepAlive(true)
     when (val method = pluginCall.getString("method").toString()) {

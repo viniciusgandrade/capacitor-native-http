@@ -15,6 +15,7 @@ npx cap sync
 
 * [`request(...)`](#request)
 * [`initialize(...)`](#initialize)
+* [`clearCookie()`](#clearcookie)
 * [Interfaces](#interfaces)
 
 </docgen-index>
@@ -48,6 +49,17 @@ initialize(options: InitializeParams) => Promise<{ data: any; }>
 | **`options`** | <code><a href="#initializeparams">InitializeParams</a></code> |
 
 **Returns:** <code>Promise&lt;{ data: any; }&gt;</code>
+
+--------------------
+
+
+### clearCookie()
+
+```typescript
+clearCookie() => Promise<any>
+```
+
+**Returns:** <code>Promise&lt;any&gt;</code>
 
 --------------------
 

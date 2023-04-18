@@ -17,4 +17,5 @@ export interface RequestParams {
 export interface HttpNativePlugin {
   request(options: RequestParams): Promise<{ data: any }>;
   initialize(options: InitializeParams): Promise<{ data: any }>;
+  clearCookie(): Promise<any>;
 }
