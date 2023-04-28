@@ -31,9 +31,8 @@ export const callNative = (req: any): Observable<any> => {
       headers,
       url: req.url
     }).then((res: any) => {
-      console.log('sucesso request!');
       ob.next({
-        body: JSON.parse(res.data),
+        body: checkJson(res.data),
         headers: res.headers ? JSON.parse(res.headers) : {}
       });
       ob.complete();
