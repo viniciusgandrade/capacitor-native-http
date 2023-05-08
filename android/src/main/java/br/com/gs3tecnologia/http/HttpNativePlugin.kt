@@ -12,6 +12,7 @@ import okhttp3.*
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONException
+import org.json.JSONObject
 import java.io.IOException
 import java.net.URI
 import java.net.URL
@@ -19,33 +20,40 @@ import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 import java.util.*
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLSocketFactory
 
 @CapacitorPlugin(name = "HttpNative")
 class HttpNativePlugin : Plugin() {
 
   private lateinit var httpClient: OkHttpClient
+  private lateinit var unsafeHttpClient: OkHttpClient
   private lateinit var certPath: String
+  private lateinit var hostname: String
 
   @RequiresApi(Build.VERSION_CODES.O)
   @PluginMethod
   fun initialize(pluginCall: PluginCall) {
-    val hosts = pluginCall.getArray("hostname")
+    hostname = pluginCall.getString("hostname", "").toString().replace("*.", "")
     certPath = pluginCall.getString("certPath").toString()
     val cert = String(Base64.getEncoder().encode((loadPublicKey().encoded)))
     val builder = CertificatePinner.Builder()
-    hosts.toList<String>().forEach { host ->
-      if (host.indexOf("brbcard.com.br") == -1) {
-        builder.add(host)
-      }
+    if (hostname != null) {
+      builder.add(hostname, "sha256/$cert")
+      val certificatePinner: CertificatePinner = builder.build()
+      httpClient = pluginCall.getInt("timeout", 30)?.let {
+        OkHttpClient.Builder()
+                .certificatePinner(certificatePinner)
+                .connectTimeout(it.toLong(), TimeUnit.SECONDS)
+                .readTimeout(it.toLong(), TimeUnit.SECONDS)
+                .writeTimeout(it.toLong(), TimeUnit.SECONDS)
+                .callTimeout(it.toLong(), TimeUnit.SECONDS)
+                .addNetworkInterceptor(AddCookiesInterceptor(this.context))
+                .addNetworkInterceptor(ReceivedCookiesInterceptor(this.context))
+                .build()
+      }!!
     }
-    builder.add("brbcard.com.br", "sha256/$cert")
-
-    val certificatePinner: CertificatePinner = builder.build()
-
-    httpClient = pluginCall.getInt("timeout", 30)?.let {
-      OkHttpClient.Builder()
-              .certificatePinner(certificatePinner)
-              .connectTimeout(it.toLong(), TimeUnit.SECONDS)
+    unsafeHttpClient = pluginCall.getInt("timeout", 30)?.let {
+      UnsafeOkHttpClient.getUnsafeOkHttpClient().newBuilder()
               .readTimeout(it.toLong(), TimeUnit.SECONDS)
               .writeTimeout(it.toLong(), TimeUnit.SECONDS)
               .callTimeout(it.toLong(), TimeUnit.SECONDS)
@@ -156,10 +164,17 @@ class HttpNativePlugin : Plugin() {
 
   private fun makeRequest(request: Request?, pluginCall: PluginCall) {
     if (request != null) {
-      httpClient.newCall(request).enqueue(object : Callback {
+      var call: Call = if (request.url.host.contains(hostname)) {
+        httpClient.newCall(request)
+      } else {
+        unsafeHttpClient.newCall(request)
+      }
+      call.enqueue(object : Callback {
         override fun onFailure(call: Call, e: IOException) {
           e.printStackTrace()
-          pluginCall.reject(e.message)
+          val jsonObject = JSONObject()
+          jsonObject.put("data", e.message)
+          jsonObject.put("statusCode", 0)
         }
 
         override fun onResponse(call: Call, response: Response) {
@@ -168,12 +183,23 @@ class HttpNativePlugin : Plugin() {
           if (response.code >= 300) {
             var body = responseBody.string()
             if (body.isEmpty()) {
-              body = "{\"msg\": \"Erro ao processar requisição\"}"
+              val jsonObject = JSONObject()
+              jsonObject.put("msg", "Erro ao processar requisição")
+              body = jsonObject.toString()
             }
-            pluginCall.reject(body)
+            val jsonObject = JSONObject()
+            jsonObject.put("data", body)
+            jsonObject.put("statusCode", response.code)
+            pluginCall.reject(jsonObject.toString())
             return
           }
           ret.put("data", responseBody.string())
+          val jsonObject = JSONObject()
+
+          for (i in 0 until response.headers.size) {
+            jsonObject.putOpt(response.headers.name(i), response.headers.value(i))
+          }
+          ret.put("headers", jsonObject.toString())
           pluginCall.resolve(ret)
         }
       })

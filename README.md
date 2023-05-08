@@ -39,12 +39,12 @@ request(options: { method: string; url: string; params?: any; data?: any; header
 ### initialize(...)
 
 ```typescript
-initialize(options: { hostname?: string[]; certPath?: string; timeout?: number; }) => Promise<{ data: any; }>
+initialize(options: { hostname: string; certPath?: string; timeout?: number; }) => Promise<{ data: any; }>
 ```
 
-| Param         | Type                                                                       |
-| ------------- | -------------------------------------------------------------------------- |
-| **`options`** | <code>{ hostname?: string[]; certPath?: string; timeout?: number; }</code> |
+| Param         | Type                                                                    |
+| ------------- | ----------------------------------------------------------------------- |
+| **`options`** | <code>{ hostname: string; certPath?: string; timeout?: number; }</code> |
 
 **Returns:** <code>Promise&lt;{ data: any; }&gt;</code>
 
