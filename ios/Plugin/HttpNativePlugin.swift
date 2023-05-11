@@ -13,7 +13,7 @@ public class HttpNativePlugin: CAPPlugin {
     var timeoutInterval = 30
     @objc func initialize(_ call: CAPPluginCall) {
         self.timeoutInterval = call.getInt("timeout", 30)
-        let host = call.getString("host", "")
+        let host = call.getString("hostname", "")
         guard let certificateURL = Bundle.main.url(forResource: call.getString("certPath", ""), withExtension: nil),
               let certificateData = try? Data(contentsOf: certificateURL)
         else {
