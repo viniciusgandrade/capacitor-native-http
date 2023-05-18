@@ -183,12 +183,17 @@ class HttpNativePlugin : Plugin() {
           if (response.code >= 300) {
             var body = responseBody.string()
             if (body.isEmpty()) {
+              val ret = JSONObject()
+              ret.put("msg", "Erro ao processar requisição")
               val jsonObject = JSONObject()
-              jsonObject.put("msg", "Erro ao processar requisição")
-              body = jsonObject.toString()
+              jsonObject.put("data", ret)
+              jsonObject.put("statusCode", response.code)
+              pluginCall.reject(jsonObject.toString())
+              return
             }
-            val jsonObject = JSONObject()
-            jsonObject.put("data", body)
+            val ret = JSONObject(body)
+            val jsonObject = JSONObject(body)
+            jsonObject.put("data", ret)
             jsonObject.put("statusCode", response.code)
             pluginCall.reject(jsonObject.toString())
             return
