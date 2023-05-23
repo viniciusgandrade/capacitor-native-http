@@ -66,7 +66,7 @@ public class HttpNativePlugin: CAPPlugin {
         for (_, option) in _headers.enumerated() {
             headers.add(name: option.key, value: option.value as! String)
         }
-        headers.add(name: "User-Agent", value: "\(deviceName()) \(deviceVersion()) \(DarwinVersion())")
+        headers.add(name: "User-Agent", value: "App/\(getAppVersion()) (\(deviceName()); \(deviceVersion()); Scale/\(getScreenScale()))")
         let cookie = UserDefaults.standard.string(forKey: "savedCookies") ?? "";
         if (!cookie.isEmpty && !url.contains("oauth2") && !url.contains("auth")) {
             headers.add(name: "Cookie", value: cookie);
@@ -160,13 +160,22 @@ public class HttpNativePlugin: CAPPlugin {
     //eg. iOS/10_1
     func deviceVersion() -> String {
         let currentDevice = UIDevice.current
-        return "\(currentDevice.systemName)/\(currentDevice.systemVersion)"
+        return "\(currentDevice.systemName) \(currentDevice.systemVersion)"
     }
     //eg. iPhone5,2
     func deviceName() -> String {
-        var sysinfo = utsname()
-        uname(&sysinfo)
-        return String(bytes: Data(bytes: &sysinfo.machine, count: Int(_SYS_NAMELEN)), encoding: .ascii)!.trimmingCharacters(in: .controlCharacters)
+//        var sysinfo = utsname()
+//        uname(&sysinfo)
+//        return String(bytes: Data(bytes: &sysinfo.machine, count: Int(_SYS_NAMELEN)), encoding: .ascii)!.trimmingCharacters(in: .controlCharacters)
+        return UIDevice.current.model
+    }
+
+    func getScreenScale() -> String {
+        return String(format: "%.2f", UIScreen.main.scale)
+    }
+
+    func getAppVersion() -> String {
+        return Bundle.main.infoDictionary?["CFBundleShortVersionString"] as! String
     }
 }
 
