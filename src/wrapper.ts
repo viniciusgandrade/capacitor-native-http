@@ -31,22 +31,14 @@ export const callNative = (req: any): Observable<any> => {
       headers,
       url: req.url
     }).then((res: any) => {
-      console.log('sucesso request!');
       ob.next({
-        body: JSON.parse(res.data),
+        body: checkJson(res.data),
         headers: res.headers ? JSON.parse(res.headers) : {}
       });
       ob.complete();
     }).catch((error: any) => {
       console.log('erro request!');
-      console.log(error.message);
-      console.log(error.error);
-      console.log(error.errorMessage);
-      const obj = checkJson(error.message || error.error || error.errorMessage);
-      if (typeof obj === 'string') {
-        ob.error({ error: obj });
-      }
-      ob.error(obj);
+      ob.error(checkJson(error.message || error.error || error.errorMessage));
     })
   });
 }

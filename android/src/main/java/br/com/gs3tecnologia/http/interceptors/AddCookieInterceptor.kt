@@ -7,7 +7,7 @@ import okhttp3.Interceptor
 import okhttp3.Response
 import java.io.IOException
 
-class AddJSessionIDCookieInterceptor(context: Context) : Interceptor {
+class AddCookieInterceptor(context: Context) : Interceptor {
   // We're storing our stuff in a database made just for cookies called PREF_COOKIES.
   // I reccomend you do this, and don't change this default value.
   private val context: Context

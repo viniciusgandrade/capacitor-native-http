@@ -1,5 +1,5 @@
 export interface InitializeParams {
-  hostname?: string[];
+  hostname?: string;
   certPath?: string;
   timeout?: number;
   addInterceptor?: string;

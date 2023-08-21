@@ -7,18 +7,15 @@ import Capacitor
 public class HttpNativePlugin: CAPPlugin {
     var session: Session?
     var timeoutInterval = 30
-    var addInterceptor = ""
-    var receivedInterceptor = ""
     @objc func initialize(_ call: CAPPluginCall) {
         self.timeoutInterval = call.getInt("timeout", 30)
+        let host = call.getString("hostname", "")
         guard let certificateURL = Bundle.main.url(forResource: call.getString("certPath", ""), withExtension: nil),
               let certificateData = try? Data(contentsOf: certificateURL)
         else {
             call.reject("Falha SSL Pinning")
             return
         }
-        self.addInterceptor = call.getString("addInterceptor", "")
-        self.receivedInterceptor = call.getString("receivedInterceptor", "")
 
         UserDefaults.standard.set("", forKey: "savedCookies")
         UserDefaults.standard.synchronize()
@@ -30,23 +27,17 @@ public class HttpNativePlugin: CAPPlugin {
             validateHost: true
         )
 
-        if let hostNames = call.getArray("hostname") {
-            var evaluators: [String: ServerTrustEvaluating] = [:]
-            for host in hostNames {
-                if ((host as! String).contains("brbcard.com.br")) {
-                    evaluators[host as! String] = serverTrustEvaluator
-                } else {
-                    evaluators[host as! String] = DefaultTrustEvaluator()
-                }
-            }
-            let configuration = URLSessionConfiguration.default
-            configuration.timeoutIntervalForRequest = TimeInterval(self.timeoutInterval)
-            let serverTrustManager = ServerTrustManager(evaluators: evaluators)
-            self.session = Session(configuration: configuration, serverTrustManager: serverTrustManager)
-            call.resolve();
-        } else {
-            call.reject("Erro init")
-        }
+        let configuration: URLSessionConfiguration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = TimeInterval(self.timeoutInterval)
+
+        let evaluators: [String: ServerTrustEvaluating] = [
+            host: serverTrustEvaluator,
+            "": DefaultTrustEvaluator()
+        ]
+
+        let manager = WildcardServerTrustPolicyManager(evaluators: evaluators)
+        self.session = Session(configuration: configuration, serverTrustManager: manager)
+        call.resolve();
     }
 
     @objc func clearCookie(_ call: CAPPluginCall) {
@@ -79,22 +70,18 @@ public class HttpNativePlugin: CAPPlugin {
         for (_, option) in _headers.enumerated() {
             headers.add(name: option.key, value: option.value as! String)
         }
-        headers.add(name: "User-Agent", value: "\(deviceName()) \(deviceVersion()) \(DarwinVersion())")
+        headers.add(name: "User-Agent", value: "App/\(getAppVersion()) (\(deviceName()); \(deviceVersion()); Scale/\(getScreenScale()))")
         let cookie = UserDefaults.standard.string(forKey: "savedCookies") ?? "";
         if (!cookie.isEmpty && !url.contains("/oauth2") && !url.contains("/auth")) {
-            if(self.addInterceptor.contains("AddJSessionIDCookieInterceptor")) {
-                let cookies = cookie.split(separator: ",")
-                let jsessionid = cookies.first(where: { $0.contains("JSESSIONID") })
-                if (jsessionid != nil && !jsessionid!.isEmpty) {
-                    headers.add(name: "Cookie", value: jsessionid?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "");
-                }
-            } else {
-                headers.add(name: "Cookie", value: cookie);
+            let cookies = cookie.split(separator: ",")
+            let jsessionid = cookies.first(where: { $0.contains("JSESSIONID") })
+            if (jsessionid != nil && !jsessionid!.isEmpty) {
+                headers.add(name: "Cookie", value: jsessionid?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "");
             }
         }
 
         var request: DataRequest?;
-
+        let url1 = URL(string: url)!
         if (method == "GET") {
             var parameters: [String: String] = [:];
 
@@ -111,8 +98,7 @@ public class HttpNativePlugin: CAPPlugin {
                 call.reject("JSON inválido")
                 return;
             }
-            let url = URL(string: url)!
-            var urlRequest = URLRequest(url: url)
+            var urlRequest = URLRequest(url: url1)
             urlRequest.httpMethod = method
             urlRequest.headers = headers
             urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -125,52 +111,46 @@ public class HttpNativePlugin: CAPPlugin {
             .validate(statusCode: 200..<300)
             .response { response in
                 print ("response: \(response.debugDescription)")
+                do {
                 if let curlRequest = response.request?.debugDescription {
                     print("cURL command: \(curlRequest)")
                 }
                 if let headerFields = response.response?.allHeaderFields as? [String: String] {
                     let cookie = headerFields["Set-Cookie"];
-                    if (self.receivedInterceptor.contains("ReceivedLoginCookiesInterceptor") && url.contains("/auth")) {
-                        UserDefaults.standard.set(cookie    , forKey: "savedCookies")
-                        UserDefaults.standard.synchronize()
-                    } else if (self.receivedInterceptor.contains("ReceivedCookiesInterceptor") && (cookie != nil && cookie!.contains("JSESSIONID"))) {
-                        UserDefaults.standard.set(cookie    , forKey: "savedCookies")
+                    if url.contains("/auth") || (cookie != nil && cookie!.contains("JSESSIONID")) {
+                        UserDefaults.standard.set(cookie, forKey: "savedCookies")
                         UserDefaults.standard.synchronize()
                     }
                 }
                 switch response.result {
                 case .success(let data):
-                    if (data == nil) {
-                        call.resolve([
-                            "data": "{}"
-                        ])
-                    } else {
-                        if let stringValue = String(data: data!, encoding: .utf8) {
-                            call.resolve([
-                                "data": stringValue
-                            ])
-                        } else {
-                            call.resolve([
-                                "data": "{}"
-                            ])
-                        }
+                                        if let stringValue = String(data: data!, encoding: .utf8) {
+                                            call.resolve([
+                                                "data": stringValue
+                                            ])
+                                        } else {
+                                            call.resolve([
+                                                "data": "{}"
+                                            ])
+                                        }
+                                    case .failure(let error):
+                                        if let statusCode = response.response?.statusCode {
+                                            if let data = response.data, let errorBody = try JSONSerialization.jsonObject(with: data) as? [String: Any], let err = try? JSONSerialization.data(withJSONObject: ["data": errorBody, "statusCode": statusCode]), let jsonString = String(data: err, encoding: .utf8) {
+                                                call.reject(jsonString)
+                                            } else {
+                                                print("Validation error: Unacceptable status code \(statusCode)")
+                                                call.reject("{\"data\":{\"status\":\"ko\", \"msg\":\"Erro ao processar requisição.\"},\"statusCode\":\(statusCode)}");
+                                            }
+                                        } else {
+                                            call.reject("{\"data\":{\"status\":\"ko\", \"msg\":\(error.localizedDescription),\"statusCode\":-1}");
+                                            print("Request error: \(error.localizedDescription)")
+                                        }
+                                    }
+                                    } catch let error {
+                                        print(error)
+                                        }
+                                }
                     }
-                case .failure(let error):
-                    if let data = response.data, let errorBody = String(data: data, encoding: .utf8) {
-                        call.reject(errorBody)
-                    } else {
-                        if let statusCode = response.response?.statusCode {
-                            // Handle validation failure due to status code outside the acceptable range
-                            print("Validation error: Unacceptable status code \(statusCode)")
-                            call.reject("{\"status\":\"ko\", \"msg\":\"Erro ao processar requisição.\",\"status\":\(statusCode)}");
-                        } else {
-                            call.reject("{\"status\":\"ko\", \"msg\":\(error.localizedDescription),\"status\":-1}");
-                            print("Request error: \(error.localizedDescription)")
-                        }
-                    }
-                }
-            }
-    }
 
     //eg. Darwin/16.3.0
     func DarwinVersion() -> String {
@@ -189,12 +169,36 @@ public class HttpNativePlugin: CAPPlugin {
     //eg. iOS/10_1
     func deviceVersion() -> String {
         let currentDevice = UIDevice.current
-        return "\(currentDevice.systemName)/\(currentDevice.systemVersion)"
+        return "\(currentDevice.systemName) \(currentDevice.systemVersion)"
     }
     //eg. iPhone5,2
     func deviceName() -> String {
-        var sysinfo = utsname()
-        uname(&sysinfo)
-        return String(bytes: Data(bytes: &sysinfo.machine, count: Int(_SYS_NAMELEN)), encoding: .ascii)!.trimmingCharacters(in: .controlCharacters)
+//        var sysinfo = utsname()
+//        uname(&sysinfo)
+//        return String(bytes: Data(bytes: &sysinfo.machine, count: Int(_SYS_NAMELEN)), encoding: .ascii)!.trimmingCharacters(in: .controlCharacters)
+        return UIDevice.current.model
+    }
+
+    func getScreenScale() -> String {
+        return String(format: "%.2f", UIScreen.main.scale)
+    }
+
+    func getAppVersion() -> String {
+        return Bundle.main.infoDictionary?["CFBundleShortVersionString"] as! String
+    }
+}
+
+class WildcardServerTrustPolicyManager: ServerTrustManager {
+    override func serverTrustEvaluator(forHost host: String) throws -> ServerTrustEvaluating? {
+        if let policy = evaluators[host] {
+            return policy
+        }
+        var domainComponents = host.split(separator: ".")
+        if domainComponents.count > 2 {
+            domainComponents[0] = "*"
+            let wildcardHost = domainComponents.joined(separator: ".")
+            return evaluators[wildcardHost]
+        }
+        return nil
     }
 }

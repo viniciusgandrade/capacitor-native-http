@@ -80,12 +80,12 @@ clearCookie() => Promise<any>
 
 #### InitializeParams
 
-| Prop                      | Type                  |
-| ------------------------- | --------------------- |
-| **`hostname`**            | <code>string[]</code> |
-| **`certPath`**            | <code>string</code>   |
-| **`timeout`**             | <code>number</code>   |
-| **`addInterceptor`**      | <code>string</code>   |
-| **`receivedInterceptor`** | <code>string</code>   |
+| Prop                      | Type                |
+| ------------------------- | ------------------- |
+| **`hostname`**            | <code>string</code> |
+| **`certPath`**            | <code>string</code> |
+| **`timeout`**             | <code>number</code> |
+| **`addInterceptor`**      | <code>string</code> |
+| **`receivedInterceptor`** | <code>string</code> |
 
 </docgen-api>
