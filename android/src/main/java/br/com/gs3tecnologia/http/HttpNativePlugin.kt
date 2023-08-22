@@ -207,7 +207,7 @@ class HttpNativePlugin : Plugin() {
               return
             }
             val ret = JSONObject(body)
-            val jsonObject = JSONObject(body)
+            val jsonObject = JSONObject()
             jsonObject.put("data", ret)
             jsonObject.put("statusCode", response.code)
             pluginCall.reject(jsonObject.toString())
