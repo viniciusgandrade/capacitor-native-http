@@ -1,5 +1,6 @@
 package br.com.gs3tecnologia.http
 
+import UnsafeOkHttpClient
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.core.net.toUri
@@ -13,46 +14,53 @@ import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
 import okhttp3.*
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.tls.HandshakeCertificates
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 import java.io.IOException
+import java.net.Socket
 import java.net.URI
 import java.net.URL
+import java.security.*
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 import java.util.*
 import java.util.concurrent.TimeUnit
+import javax.net.ssl.*
 
 @CapacitorPlugin(name = "HttpNative")
 class HttpNativePlugin : Plugin() {
 
   private lateinit var httpClient: OkHttpClient
   private lateinit var unsafeHttpClient: OkHttpClient
-  private lateinit var certPath: String
   private lateinit var hostname: String
+  private lateinit var certPathMtls: String
+  private lateinit var certPassMtls: String
+  private lateinit var certPath: String
 
   @RequiresApi(Build.VERSION_CODES.O)
   @PluginMethod
   fun initialize(pluginCall: PluginCall) {
     hostname = pluginCall.getString("hostname", "").toString().replace("*.", "")
-    certPath = pluginCall.getString("certPath").toString()
-
-    val cert = String(Base64.getEncoder().encode((loadPublicKey().encoded)))
+    certPath = pluginCall.getString("certPath", "").toString()
+    certPathMtls = pluginCall.getString("certPathMtls", "").toString()
+    certPassMtls = pluginCall.getString("certPassMtls", "").toString()
+    val cert = String(Base64.getEncoder().encode((loadPublicKey(certPath).encoded)))
     val builder = CertificatePinner.Builder()
-    if (hostname != null) {
-      builder.add(hostname, "sha256/$cert")
-      val certificatePinner: CertificatePinner = builder.build()
-      httpClient = pluginCall.getInt("timeout", 30)?.let {
-        OkHttpClient.Builder()
-                .certificatePinner(certificatePinner)
-                .connectTimeout(it.toLong(), TimeUnit.SECONDS)
-                .readTimeout(it.toLong(), TimeUnit.SECONDS)
-                .writeTimeout(it.toLong(), TimeUnit.SECONDS)
-                .callTimeout(it.toLong(), TimeUnit.SECONDS)
-                .build()
-      }!!
-    }
+
+    builder.add(hostname, "sha256/$cert")
+    val certificatePinner: CertificatePinner = builder.build()
+    httpClient = pluginCall.getInt("timeout", 30)?.let {
+      OkHttpClient.Builder()
+              .certificatePinner(certificatePinner)
+              .connectTimeout(it.toLong(), TimeUnit.SECONDS)
+              .readTimeout(it.toLong(), TimeUnit.SECONDS)
+              .writeTimeout(it.toLong(), TimeUnit.SECONDS)
+              .callTimeout(it.toLong(), TimeUnit.SECONDS)
+              .build()
+    }!!
+    buildClientAuthentication()
     unsafeHttpClient = pluginCall.getInt("timeout", 30)?.let {
       UnsafeOkHttpClient.getUnsafeOkHttpClient().newBuilder()
               .readTimeout(it.toLong(), TimeUnit.SECONDS)
@@ -72,6 +80,31 @@ class HttpNativePlugin : Plugin() {
   fun clearCookie(pluginCall: PluginCall) {
     PreferenceManager.getDefaultSharedPreferences(context).edit().clear().apply()
     pluginCall.resolve()
+  }
+
+  private fun buildClientAuthentication() {
+    val m: HandshakeCertificates = HandshakeCertificates.Builder()
+      .addPlatformTrustedCertificates()
+      .build()
+    // Load the PFX file into a KeyStore
+    val keyStore = KeyStore.getInstance("PKCS12")
+    keyStore.load(activity.application.assets.open(certPathMtls), certPassMtls.toCharArray())
+
+    val alias = keyStore.aliases().nextElement()
+    val privateKey = keyStore.getKey(alias, certPassMtls.toCharArray()) as PrivateKey
+
+    val keyManager = FixedKeyManager(privateKey, keyStore.getCertificate(alias) as X509Certificate)
+
+    val sslContext = SSLContext.getInstance("TLS")
+    sslContext.init(
+      arrayOf<KeyManager>(keyManager),
+      arrayOf<TrustManager>(m.trustManager),
+      null
+    )
+
+    httpClient = httpClient.newBuilder()
+      .sslSocketFactory(sslContext.socketFactory, m.trustManager)
+      .build()
   }
 
   @PluginMethod
@@ -179,24 +212,30 @@ class HttpNativePlugin : Plugin() {
 
   private fun makeRequest(request: Request?, pluginCall: PluginCall) {
     if (request != null) {
-      var call: Call = if (request.url.host.contains(hostname)) {
+      val call: Call = if (request.url.host.contains(hostname)) {
         httpClient.newCall(request)
       } else {
         unsafeHttpClient.newCall(request)
       }
       call.enqueue(object : Callback {
         override fun onFailure(call: Call, e: IOException) {
-          e.printStackTrace()
+          val ret = JSONObject()
+          var msg = e.message
+          if (msg == null || msg == "timeout") {
+            msg = "Tempo de espera para requisição excedido.";
+          }
+          ret.put("msg", msg)
           val jsonObject = JSONObject()
-          jsonObject.put("data", e.message)
-          jsonObject.put("statusCode", 0)
+          jsonObject.put("data", ret)
+          jsonObject.put("statusCode", "-1")
+          pluginCall.reject(jsonObject.toString())
         }
 
         override fun onResponse(call: Call, response: Response) {
           val responseBody = response.body ?: throw IOException("Response body is null")
           val ret = JSObject()
           if (response.code >= 300) {
-            var body = responseBody.string()
+            val body = responseBody.string()
             if (body.isEmpty()) {
               val ret = JSONObject()
               ret.put("msg", "Erro ao processar requisição")
@@ -206,12 +245,22 @@ class HttpNativePlugin : Plugin() {
               pluginCall.reject(jsonObject.toString())
               return
             }
-            val ret = JSONObject(body)
-            val jsonObject = JSONObject()
-            jsonObject.put("data", ret)
-            jsonObject.put("statusCode", response.code)
-            pluginCall.reject(jsonObject.toString())
-            return
+            try {
+              val ret = JSONObject(body)
+              val jsonObject = JSONObject()
+              jsonObject.put("data", ret)
+              jsonObject.put("statusCode", response.code)
+              pluginCall.reject(jsonObject.toString())
+              return
+            } catch (e: java.lang.Exception) {
+              val ret = JSONObject()
+              ret.put("msg", "Erro ao processar requisição")
+              val jsonObject = JSONObject()
+              jsonObject.put("data", ret)
+              jsonObject.put("statusCode", 400)
+              pluginCall.reject(jsonObject.toString())
+              return
+            }
           }
           ret.put("data", responseBody.string())
           val jsonObject = JSONObject()
@@ -243,9 +292,51 @@ class HttpNativePlugin : Plugin() {
     return builder
   }
 
-  private fun loadPublicKey(): X509Certificate {
-    val ins = activity.application.assets.open(certPath).buffered()
+  private fun loadPublicKey(path: String): X509Certificate {
+    val ins = activity.application.assets.open(path).buffered()
     val cf = CertificateFactory.getInstance("X.509")
     return cf.generateCertificate(ins) as X509Certificate
+  }
+
+}
+
+internal class FixedKeyManager(private val pk: PrivateKey, vararg chain: X509Certificate) :
+  X509KeyManager {
+  private val chain: Array<X509Certificate>
+
+  init {
+    this.chain = chain as Array<X509Certificate>
+  }
+
+  override fun getClientAliases(keyType: String?, issuers: Array<Principal?>?): Array<String> {
+    return arrayOf("mykey")
+  }
+
+  override fun chooseClientAlias(
+    keyType: Array<String?>?,
+    issuers: Array<Principal?>?,
+    socket: Socket?
+  ): String {
+    return "mykey"
+  }
+
+  override fun getServerAliases(keyType: String?, issuers: Array<Principal?>?): Array<String> {
+    throw UnsupportedOperationException()
+  }
+
+  override fun chooseServerAlias(
+    keyType: String?,
+    issuers: Array<Principal?>?,
+    socket: Socket?
+  ): String {
+    throw UnsupportedOperationException()
+  }
+
+  override fun getCertificateChain(alias: String?): Array<X509Certificate> {
+    return chain
+  }
+
+  override fun getPrivateKey(alias: String?): PrivateKey {
+    return pk
   }
 }

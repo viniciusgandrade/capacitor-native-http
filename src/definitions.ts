@@ -2,6 +2,8 @@ export interface InitializeParams {
   hostname?: string;
   certPath?: string;
   timeout?: number;
+  certPassMtls?: string;
+  certPathMtls?: string;
   addInterceptor?: string;
   receivedInterceptor?:string;
 }

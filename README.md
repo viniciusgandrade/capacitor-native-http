@@ -85,6 +85,8 @@ clearCookie() => Promise<any>
 | **`hostname`**            | <code>string</code> |
 | **`certPath`**            | <code>string</code> |
 | **`timeout`**             | <code>number</code> |
+| **`certPassMtls`**        | <code>string</code> |
+| **`certPathMtls`**        | <code>string</code> |
 | **`addInterceptor`**      | <code>string</code> |
 | **`receivedInterceptor`** | <code>string</code> |
 

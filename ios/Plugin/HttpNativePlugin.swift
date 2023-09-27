@@ -3,13 +3,21 @@ import Security
 import Foundation
 import Capacitor
 
+/**
+ * Please read the Capacitor iOS Plugin Development Guide
+ * here: https://capacitorjs.com/docs/plugins/ios
+ */
 @objc(HttpNativePlugin)
 public class HttpNativePlugin: CAPPlugin {
     var session: Session?
     var timeoutInterval = 30
+    var certMtlsPath = ""
+    var certPassMtls = ""
     @objc func initialize(_ call: CAPPluginCall) {
         self.timeoutInterval = call.getInt("timeout", 30)
         let host = call.getString("hostname", "")
+        self.certMtlsPath = call.getString("certPathMtls", "")
+        self.certPassMtls = call.getString("certPassMtls", "")
         guard let certificateURL = Bundle.main.url(forResource: call.getString("certPath", ""), withExtension: nil),
               let certificateData = try? Data(contentsOf: certificateURL)
         else {
@@ -72,12 +80,8 @@ public class HttpNativePlugin: CAPPlugin {
         }
         headers.add(name: "User-Agent", value: "App/\(getAppVersion()) (\(deviceName()); \(deviceVersion()); Scale/\(getScreenScale()))")
         let cookie = UserDefaults.standard.string(forKey: "savedCookies") ?? "";
-        if (!cookie.isEmpty && !url.contains("/oauth2") && !url.contains("/auth")) {
-            let cookies = cookie.split(separator: ",")
-            let jsessionid = cookies.first(where: { $0.contains("JSESSIONID") })
-            if (jsessionid != nil && !jsessionid!.isEmpty) {
-                headers.add(name: "Cookie", value: jsessionid?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "");
-            }
+        if (!cookie.isEmpty && !url.contains("oauth2") && !url.contains("auth")) {
+            headers.add(name: "Cookie", value: cookie);
         }
 
         var request: DataRequest?;
@@ -106,51 +110,55 @@ public class HttpNativePlugin: CAPPlugin {
 
             request = self.session?.request(urlRequest)
         }
+        if let credential = createPKCS12Credential(certPath: self.certMtlsPath, certPass: self.certPassMtls) {
+            request?.authenticate(with: credential)
+        }
 
         request?
             .validate(statusCode: 200..<300)
             .response { response in
                 print ("response: \(response.debugDescription)")
                 do {
-                if let curlRequest = response.request?.debugDescription {
-                    print("cURL command: \(curlRequest)")
-                }
-                if let headerFields = response.response?.allHeaderFields as? [String: String] {
-                    let cookie = headerFields["Set-Cookie"];
-                    if url.contains("/auth") || (cookie != nil && cookie!.contains("JSESSIONID")) {
-                        UserDefaults.standard.set(cookie, forKey: "savedCookies")
-                        UserDefaults.standard.synchronize()
+                    if let curlRequest = response.request?.debugDescription {
+                        print("cURL command: \(curlRequest)")
                     }
-                }
-                switch response.result {
-                case .success(let data):
-                                        if let stringValue = String(data: data!, encoding: .utf8) {
-                                            call.resolve([
-                                                "data": stringValue
-                                            ])
-                                        } else {
-                                            call.resolve([
-                                                "data": "{}"
-                                            ])
-                                        }
-                                    case .failure(let error):
-                                        if let statusCode = response.response?.statusCode {
-                                            if let data = response.data, let errorBody = try JSONSerialization.jsonObject(with: data) as? [String: Any], let err = try? JSONSerialization.data(withJSONObject: ["data": errorBody, "statusCode": statusCode]), let jsonString = String(data: err, encoding: .utf8) {
-                                                call.reject(jsonString)
-                                            } else {
-                                                print("Validation error: Unacceptable status code \(statusCode)")
-                                                call.reject("{\"data\":{\"status\":\"ko\", \"msg\":\"Erro ao processar requisição.\"},\"statusCode\":\(statusCode)}");
-                                            }
-                                        } else {
-                                            call.reject("{\"data\":{\"status\":\"ko\", \"msg\":\(error.localizedDescription),\"statusCode\":-1}");
-                                            print("Request error: \(error.localizedDescription)")
-                                        }
-                                    }
-                                    } catch let error {
-                                        print(error)
-                                        }
-                                }
+                    if let headerFields = response.response?.allHeaderFields as? [String: String] {
+                        let cookie = headerFields["Set-Cookie"];
+                        if (cookie != nil && !(cookie?.isEmpty ?? true)) {
+                            UserDefaults.standard.set(cookie    , forKey: "savedCookies")
+                            UserDefaults.standard.synchronize()
+                        }
                     }
+                    switch response.result {
+                    case .success(let data):
+                        if let stringValue = String(data: data!, encoding: .utf8) {
+                            call.resolve([
+                                "data": stringValue
+                            ])
+                        } else {
+                            call.resolve([
+                                "data": "{}"
+                            ])
+                        }
+                    case .failure(let error):
+                        if let statusCode = response.response?.statusCode {
+                            if let data = response.data, let errorBody = try JSONSerialization.jsonObject(with: data) as? [String: Any], let err = try? JSONSerialization.data(withJSONObject: ["data": errorBody, "statusCode": statusCode]), let jsonString = String(data: err, encoding: .utf8) {
+                                call.reject(jsonString)
+                            } else {
+                                print("Validation error: Unacceptable status code \(statusCode)")
+                                call.reject("{\"data\":{\"status\":\"ko\", \"msg\":\"Erro ao processar requisição.\"},\"statusCode\":\(statusCode)}");
+                            }
+                        } else {
+                            call.reject("{\"data\":{\"status\":\"ko\", \"msg\":\(error.localizedDescription),\"statusCode\":-1}");
+                            print("Request error: \(error.localizedDescription)")
+                        }
+                    }
+                } catch let error {
+                    call.reject("{\"data\":{\"status\":\"ko\", \"msg\":\"Erro ao processar requisição\",\"statusCode\":400}");
+                    print("Request error: \(error.localizedDescription)")
+                }
+            }
+    }
 
     //eg. Darwin/16.3.0
     func DarwinVersion() -> String {
@@ -173,9 +181,9 @@ public class HttpNativePlugin: CAPPlugin {
     }
     //eg. iPhone5,2
     func deviceName() -> String {
-//        var sysinfo = utsname()
-//        uname(&sysinfo)
-//        return String(bytes: Data(bytes: &sysinfo.machine, count: Int(_SYS_NAMELEN)), encoding: .ascii)!.trimmingCharacters(in: .controlCharacters)
+        //        var sysinfo = utsname()
+        //        uname(&sysinfo)
+        //        return String(bytes: Data(bytes: &sysinfo.machine, count: Int(_SYS_NAMELEN)), encoding: .ascii)!.trimmingCharacters(in: .controlCharacters)
         return UIDevice.current.model
     }
 
@@ -201,4 +209,30 @@ class WildcardServerTrustPolicyManager: ServerTrustManager {
         }
         return nil
     }
+}
+
+extension String: LocalizedError {
+    public var errorDescription: String? { return self }
+}
+
+func createPKCS12Credential(certPath: String, certPass: String) -> URLCredential? {
+    let certificatePath = Bundle.main.path(forResource: certPath, ofType: nil)
+    let certificateData = try? Data(contentsOf: URL(fileURLWithPath: certificatePath!))
+
+    let options: [String: Any] = [
+        kSecImportExportPassphrase as String: certPass
+    ]
+
+    var importedItems: CFArray?
+    let status = SecPKCS12Import(certificateData! as NSData, options as CFDictionary, &importedItems)
+
+    if status == errSecSuccess, let itemsArray = importedItems as? Array<Dictionary<String, Any>>, let firstItem = itemsArray.first {
+        let identityKey = kSecImportItemIdentity as String
+        if let identity = firstItem[identityKey] {
+            let credential = URLCredential(identity: identity as! SecIdentity, certificates: nil, persistence: .forSession)
+            return credential
+        }
+    }
+
+    return nil
 }
