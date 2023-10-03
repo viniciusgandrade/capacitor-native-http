@@ -87,28 +87,32 @@ class HttpNativePlugin : Plugin() {
   }
 
   private fun buildClientAuthentication() {
-    val m: HandshakeCertificates = HandshakeCertificates.Builder()
-            .addPlatformTrustedCertificates()
-            .build()
-    // Load the PFX file into a KeyStore
-    val keyStore = KeyStore.getInstance("PKCS12")
-    keyStore.load(activity.application.assets.open(certPathMtls), certPassMtls.toCharArray())
+    try {
+      val m: HandshakeCertificates = HandshakeCertificates.Builder()
+              .addPlatformTrustedCertificates()
+              .build()
+      // Load the PFX file into a KeyStore
+      val keyStore = KeyStore.getInstance("PKCS12")
+      keyStore.load(activity.application.assets.open(certPathMtls), certPassMtls.toCharArray())
 
-    val alias = keyStore.aliases().nextElement()
-    val privateKey = keyStore.getKey(alias, certPassMtls.toCharArray()) as PrivateKey
+      val alias = keyStore.aliases().nextElement()
+      val privateKey = keyStore.getKey(alias, certPassMtls.toCharArray()) as PrivateKey
 
-    val keyManager = FixedKeyManager(privateKey, keyStore.getCertificate(alias) as X509Certificate)
+      val keyManager = FixedKeyManager(privateKey, keyStore.getCertificate(alias) as X509Certificate)
 
-    val sslContext = SSLContext.getInstance("TLS")
-    sslContext.init(
-            arrayOf<KeyManager>(keyManager),
-            arrayOf<TrustManager>(m.trustManager),
-            null
-    )
+      val sslContext = SSLContext.getInstance("TLS")
+      sslContext.init(
+              arrayOf<KeyManager>(keyManager),
+              arrayOf<TrustManager>(m.trustManager),
+              null
+      )
 
-    httpClient = httpClient.newBuilder()
-            .sslSocketFactory(sslContext.socketFactory, m.trustManager)
-            .build()
+      httpClient = httpClient.newBuilder()
+              .sslSocketFactory(sslContext.socketFactory, m.trustManager)
+              .build()
+    } catch (e: java.lang.Exception) {
+      print("Ignorar...");
+    }
   }
 
   @PluginMethod

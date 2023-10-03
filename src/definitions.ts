@@ -4,8 +4,7 @@ export interface InitializeParams {
   timeout?: number;
   certPassMtls?: string;
   certPathMtls?: string;
-  addInterceptor?: string;
-  receivedInterceptor?:string;
+  saveLoginCookie?: boolean;
 }
 
 export interface RequestParams {

@@ -9,6 +9,7 @@ import Capacitor
  */
 @objc(HttpNativePlugin)
 public class HttpNativePlugin: CAPPlugin {
+    var saveLoginCookie = false
     var session: Session?
     var timeoutInterval = 30
     var certMtlsPath = ""
@@ -18,6 +19,7 @@ public class HttpNativePlugin: CAPPlugin {
         let host = call.getString("hostname", "")
         self.certMtlsPath = call.getString("certPathMtls", "")
         self.certPassMtls = call.getString("certPassMtls", "")
+        self.saveLoginCookie = call.getBool("saveLoginCookie", false)
         let fileManager = FileManager.default
         do {
             guard let directoryPath = Bundle.main.url(forResource: call.getString("certPath"), withExtension: nil) else {
@@ -146,9 +148,14 @@ public class HttpNativePlugin: CAPPlugin {
                     }
                     if let headerFields = response.response?.allHeaderFields as? [String: String] {
                         let cookie = headerFields["Set-Cookie"];
-                        if (cookie != nil && !(cookie?.isEmpty ?? true)) {
+                        if (self.saveLoginCookie && url.contains("/auth")) {
                             UserDefaults.standard.set(cookie    , forKey: "savedCookies")
                             UserDefaults.standard.synchronize()
+                        } else if (!self.saveLoginCookie) {
+                            if (cookie != nil && !(cookie?.isEmpty ?? true)) {
+                                UserDefaults.standard.set(cookie    , forKey: "savedCookies")
+                                UserDefaults.standard.synchronize()
+                            }
                         }
                     }
                     switch response.result {
