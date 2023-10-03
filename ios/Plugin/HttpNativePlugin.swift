@@ -18,34 +18,54 @@ public class HttpNativePlugin: CAPPlugin {
         let host = call.getString("hostname", "")
         self.certMtlsPath = call.getString("certPathMtls", "")
         self.certPassMtls = call.getString("certPassMtls", "")
-        guard let certificateURL = Bundle.main.url(forResource: call.getString("certPath", ""), withExtension: nil),
-              let certificateData = try? Data(contentsOf: certificateURL)
-        else {
-            call.reject("Falha SSL Pinning")
-            return
+        let fileManager = FileManager.default
+        do {
+            guard let directoryPath = Bundle.main.url(forResource: call.getString("certPath"), withExtension: nil) else {
+                print("Directory 'certificates' not found in bundle.")
+                return
+            }
+            let directoryURL = URL(fileURLWithPath: directoryPath.path)
+            let contents = try fileManager.contentsOfDirectory(at: directoryURL, includingPropertiesForKeys: nil, options: [])
+
+            var pinnedCertificates: [SecCertificate] = []
+
+            for fileURL in contents {
+                if fileURL.pathExtension == "cer" {
+                    if let certificateData = try? Data(contentsOf: fileURL) {
+                        if let certificate = SecCertificateCreateWithData(nil, certificateData as CFData) {
+                            pinnedCertificates.append(certificate)
+                        }
+                    }
+                }
+            }
+
+            if !pinnedCertificates.isEmpty {
+                let serverTrustEvaluator = PinnedCertificatesTrustEvaluator(
+                    certificates: pinnedCertificates,
+                    acceptSelfSignedCertificates: true,
+                    performDefaultValidation: true,
+                    validateHost: true
+                )
+
+                UserDefaults.standard.set("", forKey: "savedCookies")
+                UserDefaults.standard.synchronize()
+                let configuration: URLSessionConfiguration = URLSessionConfiguration.default
+                configuration.timeoutIntervalForRequest = TimeInterval(self.timeoutInterval)
+
+                let evaluators: [String: ServerTrustEvaluating] = [
+                    host: serverTrustEvaluator,
+                    "": DefaultTrustEvaluator()
+                ]
+
+                let manager = WildcardServerTrustPolicyManager(evaluators: evaluators)
+                self.session = Session(configuration: configuration, serverTrustManager: manager)
+                call.resolve();
+            } else {
+                print("No .cer files found in the directory.")
+            }
+        } catch {
+            print("Error reading directory: \(error)")
         }
-
-        UserDefaults.standard.set("", forKey: "savedCookies")
-        UserDefaults.standard.synchronize()
-        let pinnedCertificates: [SecCertificate] = [SecCertificateCreateWithData(nil, certificateData as CFData)!]
-        let serverTrustEvaluator = PinnedCertificatesTrustEvaluator(
-            certificates: pinnedCertificates,
-            acceptSelfSignedCertificates: true,
-            performDefaultValidation: true,
-            validateHost: true
-        )
-
-        let configuration: URLSessionConfiguration = URLSessionConfiguration.default
-        configuration.timeoutIntervalForRequest = TimeInterval(self.timeoutInterval)
-
-        let evaluators: [String: ServerTrustEvaluating] = [
-            host: serverTrustEvaluator,
-            "": DefaultTrustEvaluator()
-        ]
-
-        let manager = WildcardServerTrustPolicyManager(evaluators: evaluators)
-        self.session = Session(configuration: configuration, serverTrustManager: manager)
-        call.resolve();
     }
 
     @objc func clearCookie(_ call: CAPPluginCall) {
@@ -110,8 +130,10 @@ public class HttpNativePlugin: CAPPlugin {
 
             request = self.session?.request(urlRequest)
         }
-        if let credential = createPKCS12Credential(certPath: self.certMtlsPath, certPass: self.certPassMtls) {
-            request?.authenticate(with: credential)
+        if (!self.certMtlsPath.isEmpty) {
+            if let credential = createPKCS12Credential(certPath: self.certMtlsPath, certPass: self.certPassMtls) {
+                request?.authenticate(with: credential)
+            }
         }
 
         request?

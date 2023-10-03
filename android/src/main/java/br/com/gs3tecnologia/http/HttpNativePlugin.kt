@@ -28,7 +28,6 @@ import java.security.cert.X509Certificate
 import java.util.*
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.*
-
 @CapacitorPlugin(name = "HttpNative")
 class HttpNativePlugin : Plugin() {
 
@@ -37,19 +36,24 @@ class HttpNativePlugin : Plugin() {
   private lateinit var hostname: String
   private lateinit var certPathMtls: String
   private lateinit var certPassMtls: String
-  private lateinit var certPath: String
+  private lateinit var certhFolder: String
 
   @RequiresApi(Build.VERSION_CODES.O)
   @PluginMethod
   fun initialize(pluginCall: PluginCall) {
     hostname = pluginCall.getString("hostname", "").toString().replace("*.", "")
-    certPath = pluginCall.getString("certPath", "").toString()
+    certhFolder = pluginCall.getString("certPath", "").toString()
     certPathMtls = pluginCall.getString("certPathMtls", "").toString()
     certPassMtls = pluginCall.getString("certPassMtls", "").toString()
-    val cert = String(Base64.getEncoder().encode((loadPublicKey(certPath).encoded)))
     val builder = CertificatePinner.Builder()
+    val listCert = activity.application.assets.list(certhFolder)?.filter { cer -> cer.contains(".cer") }
+    val certs = mutableListOf<String>();
+    listCert!!.forEach { certPath ->
+      val cert = String(Base64.getEncoder().encode((loadPublicKey("${certhFolder}/${certPath}").encoded)))
+      certs.add("sha256/$cert")
+    }
+    builder.add(hostname, *certs.toTypedArray())
 
-    builder.add(hostname, "sha256/$cert")
     val certificatePinner: CertificatePinner = builder.build()
     httpClient = pluginCall.getInt("timeout", 30)?.let {
       OkHttpClient.Builder()
@@ -84,8 +88,8 @@ class HttpNativePlugin : Plugin() {
 
   private fun buildClientAuthentication() {
     val m: HandshakeCertificates = HandshakeCertificates.Builder()
-      .addPlatformTrustedCertificates()
-      .build()
+            .addPlatformTrustedCertificates()
+            .build()
     // Load the PFX file into a KeyStore
     val keyStore = KeyStore.getInstance("PKCS12")
     keyStore.load(activity.application.assets.open(certPathMtls), certPassMtls.toCharArray())
@@ -97,14 +101,14 @@ class HttpNativePlugin : Plugin() {
 
     val sslContext = SSLContext.getInstance("TLS")
     sslContext.init(
-      arrayOf<KeyManager>(keyManager),
-      arrayOf<TrustManager>(m.trustManager),
-      null
+            arrayOf<KeyManager>(keyManager),
+            arrayOf<TrustManager>(m.trustManager),
+            null
     )
 
     httpClient = httpClient.newBuilder()
-      .sslSocketFactory(sslContext.socketFactory, m.trustManager)
-      .build()
+            .sslSocketFactory(sslContext.socketFactory, m.trustManager)
+            .build()
   }
 
   @PluginMethod
@@ -301,7 +305,7 @@ class HttpNativePlugin : Plugin() {
 }
 
 internal class FixedKeyManager(private val pk: PrivateKey, vararg chain: X509Certificate) :
-  X509KeyManager {
+        X509KeyManager {
   private val chain: Array<X509Certificate>
 
   init {
@@ -313,9 +317,9 @@ internal class FixedKeyManager(private val pk: PrivateKey, vararg chain: X509Cer
   }
 
   override fun chooseClientAlias(
-    keyType: Array<String?>?,
-    issuers: Array<Principal?>?,
-    socket: Socket?
+          keyType: Array<String?>?,
+          issuers: Array<Principal?>?,
+          socket: Socket?
   ): String {
     return "mykey"
   }
@@ -325,9 +329,9 @@ internal class FixedKeyManager(private val pk: PrivateKey, vararg chain: X509Cer
   }
 
   override fun chooseServerAlias(
-    keyType: String?,
-    issuers: Array<Principal?>?,
-    socket: Socket?
+          keyType: String?,
+          issuers: Array<Principal?>?,
+          socket: Socket?
   ): String {
     throw UnsupportedOperationException()
   }
