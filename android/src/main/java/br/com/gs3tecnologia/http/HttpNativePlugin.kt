@@ -231,6 +231,8 @@ class HttpNativePlugin : Plugin() {
           var msg = e.message
           if (msg == null || msg == "timeout") {
             msg = "Tempo de espera para requisição excedido.";
+          } else if (msg.contains("Unable to resolve") || msg.contains("java.") || msg.contains("javac.") || msg.contains("certificate")) {
+            msg = "Erro ao processar a requisição."
           }
           ret.put("msg", msg)
           val jsonObject = JSONObject()

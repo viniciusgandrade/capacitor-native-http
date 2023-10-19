@@ -175,18 +175,38 @@ public class HttpNativePlugin: CAPPlugin {
                                 call.reject(jsonString)
                             } else {
                                 print("Validation error: Unacceptable status code \(statusCode)")
-                                call.reject("{\"data\":{\"status\":\"ko\", \"msg\":\"Erro ao processar requisição.\"},\"statusCode\":\(statusCode)}");
+                                self.mountErrorResponse(msg: "Erro ao processar requisição.", statusCode: statusCode, call: call)
                             }
                         } else {
-                            call.reject("{\"data\":{\"status\":\"ko\", \"msg\":\(error.localizedDescription),\"statusCode\":-1}");
+                            self.mountErrorResponse(msg: error.localizedDescription, statusCode: 400, call: call)
                             print("Request error: \(error.localizedDescription)")
                         }
                     }
                 } catch let error {
-                    call.reject("{\"data\":{\"status\":\"ko\", \"msg\":\"Erro ao processar requisição\",\"statusCode\":400}");
+                    self.mountErrorResponse(msg: "Erro ao processar requisição", statusCode: 400, call: call)
                     print("Request error: \(error.localizedDescription)")
                 }
             }
+    }
+
+    func mountErrorResponse(msg: String, statusCode: Int, call: CAPPluginCall) {
+        var ret = [String: Any]()
+        ret["msg"] = msg
+        if msg.contains("SecTrust") {
+            ret["msg"] = "Erro ao processar a requisição."
+        }
+        ret["status"] = "ko"
+        var jsonObject = [String: Any]()
+        jsonObject["data"] = ret
+        jsonObject["statusCode"] = statusCode
+        do {
+            let jsonData = try JSONSerialization.data(withJSONObject: jsonObject)
+            if let jsonString = String(data: jsonData, encoding: .utf8) {
+                call.reject(jsonString)
+            }
+        } catch {
+            // Handle JSON serialization error
+        }
     }
 
     //eg. Darwin/16.3.0
