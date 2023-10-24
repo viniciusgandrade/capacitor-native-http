@@ -20,6 +20,7 @@ export default {
   ],
   external: [
     '@capacitor/core',
-    'rxjs'
+    'rxjs',
+    '@angular/common'
   ],
 };

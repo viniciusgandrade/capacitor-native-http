@@ -1,17 +1,19 @@
+import { HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 import { HttpNative } from './index';
 
 export const callNative = (req: any): Observable<any> => {
   return new Observable<any>((ob: any) => {
+    let reqCopy = req;
     const headers = {} as any;
-    req.headers.keys().forEach((key: string) => {
-      headers[key] = req.headers.get(key);
+    reqCopy.headers.keys().forEach((key: string) => {
+      headers[key] = reqCopy.headers.get(key);
     });
-    let data: any = req.body;
-    if (req.method === 'POST' && headers['Content-Type'] === 'application/x-www-form-urlencoded' && req.body) {
+    let data: any = reqCopy.body;
+    if (reqCopy.method === 'POST' && headers['Content-Type'] === 'application/x-www-form-urlencoded' && reqCopy.body) {
       data = {};
-      const params = req.body.split('&');
+      const params = reqCopy.body.split('&');
       for (const param of params) {
         try {
           data[param.split('=')[0]] = decodeURIComponent(param.split('=')[1]);
@@ -19,17 +21,38 @@ export const callNative = (req: any): Observable<any> => {
           data[param.split('=')[0]] = param.split('=')[1];
         }
       }
+    } else if (reqCopy.method === 'GET' && reqCopy.url.includes('?')) {
+      let params: any = reqCopy.url
+        .split('?')[1]
+        ?.split('&')
+        ?.map((p: { split: (arg0: string) => [any, any]; }) => {
+          const [key, value] = p.split('=');
+          return { [key]: value };
+        })
+        .reduce((acc: { [x: string]: any; }, curr: { [x: string]: any; }) => {
+          let key: keyof typeof curr;
+          // eslint-disable-next-line guard-for-in
+          for (key in curr) {
+            acc[key] = curr[key];
+          }
+          return acc;
+        });
+      params = new HttpParams({ fromObject: params });
+      reqCopy = reqCopy.clone({
+        params,
+        url: reqCopy.url.split('?')[0],
+      });
     }
     const params: any = {};
-    req.params.keys().forEach((key: string) => {
-      params[key] = req.params.get(key);
+    reqCopy.params.keys().forEach((key: string) => {
+      params[key] = reqCopy.params.get(key);
     });
     HttpNative.request({
-      method: req.method,
+      method: reqCopy.method,
       data,
       params,
       headers,
-      url: req.url
+      url: reqCopy.url
     }).then((res: any) => {
       ob.next({
         body: checkJson(res.data),
