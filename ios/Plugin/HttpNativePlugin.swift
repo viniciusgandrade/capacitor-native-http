@@ -178,13 +178,13 @@ public class HttpNativePlugin: CAPPlugin {
                                 self.mountErrorResponse(msg: "Erro ao processar requisição.", statusCode: statusCode, call: call)
                             }
                         } else {
-                            self.mountErrorResponse(msg: error.localizedDescription, statusCode: 400, call: call)
-                            print("Request error: \(error.localizedDescription)")
+                            print("Request error1: \(error.localizedDescription)")
+                            self.mountErrorResponse(msg: "Expired", statusCode: 403, call: call)
                         }
                     }
                 } catch let error {
+                    print("Request error2: \(error.localizedDescription)")
                     self.mountErrorResponse(msg: "Erro ao processar requisição", statusCode: 400, call: call)
-                    print("Request error: \(error.localizedDescription)")
                 }
             }
     }

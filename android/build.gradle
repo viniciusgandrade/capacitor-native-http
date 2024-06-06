@@ -53,8 +53,9 @@ dependencies {
     implementation fileTree(dir: 'libs', include: ['*.jar'])
     implementation project(':capacitor-android')
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
-    implementation "com.squareup.okhttp3:okhttp:4.7.2"
-    implementation "com.squareup.okhttp3:okhttp-tls:4.11.0"
+    implementation "com.squareup.okhttp3:okhttp:5.0.0-alpha.6"
+    implementation "com.squareup.okhttp3:okhttp-tls:5.0.0-alpha.6"
+    implementation "com.squareup.okhttp3:logging-interceptor:5.0.0-alpha.6"
     implementation "androidx.preference:preference:1.2.0"
     implementation "androidx.core:core-ktx:1.8.0"
     testImplementation "junit:junit:$junitVersion"
