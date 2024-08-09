@@ -67,7 +67,7 @@ function makeRequest(req: {
     method: req.method,
     data: req.data,
     params: req.params,
-    headers: req.url,
+    headers: req.headers,
     url: req.url,
   })
     .then((res: any) => {
