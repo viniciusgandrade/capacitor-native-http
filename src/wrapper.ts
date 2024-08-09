@@ -21,6 +21,23 @@ export const callNative = (req: any): Observable<any> => {
         }
       }
     }
+    if (
+      headers['Content-Type'].includes('multipart/form-data') ||
+      data.data instanceof FormData
+    ) {
+      const form = new FormData();
+      if (data instanceof FormData) {
+        data.forEach((value, key) => {
+          form.append(key, value);
+        });
+      } else {
+        for (const key of Object.keys(data)) {
+          form.append(key, data[key]);
+        }
+      }
+      data = form;
+      delete headers['Content-Type'];
+    }
     const params: any = {};
     req.params.keys().forEach((key: any) => {
       params[key] = req.params.get(key);
