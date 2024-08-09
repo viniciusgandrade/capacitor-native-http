@@ -120,17 +120,35 @@ public class HttpNativePlugin: CAPPlugin {
             }
             request = self.session?.request(url, method: HTTPMethod(rawValue: method), parameters: parameters, encoder: encoder, headers: headers);
         } else {
-            guard let jsonData = try? JSONSerialization.data(withJSONObject: data, options: []) else {
-                call.reject("JSON inválido")
-                return;
-            }
-            var urlRequest = URLRequest(url: url1)
-            urlRequest.httpMethod = method
-            urlRequest.headers = headers
-            urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            urlRequest.httpBody = jsonData
+            if (contentType == "multipart/form-data"){
+                request = AF.upload(multipartFormData: { multipartFormData in
+                // Add parameters
+                for (key, value) in data {
+                    if let stringValue = value as? String {
+                        multipartFormData.append(Data(stringValue.utf8), withName: key)
+                    }
+                }
 
-            request = self.session?.request(urlRequest)
+                // Add file data
+                    if let fileData = Data(base64Encoded: data["file"] as! String),
+                   let fileName = data["fileName"] as? String,
+                   let mimeType = data["contentType"] as? String {
+                    multipartFormData.append(fileData, withName: "file", fileName: fileName, mimeType: mimeType)
+                }
+            }, to: url1, method: HTTPMethod(rawValue: method), headers: headers)
+            } else {
+                guard let jsonData = try? JSONSerialization.data(withJSONObject: data, options: []) else {
+                    call.reject("JSON inválido")
+                    return;
+                }
+                var urlRequest = URLRequest(url: url1)
+                urlRequest.httpMethod = method
+                urlRequest.headers = headers
+                urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                urlRequest.httpBody = jsonData
+
+                request = self.session?.request(urlRequest)
+            }
         }
         if (!self.certMtlsPath.isEmpty) {
             if let credential = createPKCS12Credential(certPath: self.certMtlsPath, certPass: self.certPassMtls) {

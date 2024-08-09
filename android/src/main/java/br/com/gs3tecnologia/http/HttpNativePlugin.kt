@@ -29,6 +29,7 @@ import java.util.*
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.*
 import android.util.Base64
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
 
 @CapacitorPlugin(name = "HttpNative")
 class HttpNativePlugin : Plugin() {
@@ -51,7 +52,7 @@ class HttpNativePlugin : Plugin() {
     val listCert = activity.application.assets.list(certhFolder)?.filter { cer -> cer.contains(".cer") }
     val certs = mutableListOf<String>();
     listCert!!.forEach { certPath ->
-      val cert = String(Base64.getEncoder().encode((loadPublicKey("${certhFolder}/${certPath}").encoded)))
+      val cert = String(java.util.Base64.getEncoder().encode((loadPublicKey("${certhFolder}/${certPath}").encoded)))
       certs.add("sha256/$cert")
     }
     builder.add(hostname, *certs.toTypedArray())
@@ -202,10 +203,34 @@ class HttpNativePlugin : Plugin() {
 
     val request: Request? =
             if (jsonHeaders.getString("Content-Type", "") != "application/x-www-form-urlencoded") {
-              val payload = data.toString()
-              val requestBody = payload.toRequestBody()
-              url?.let {
-                Request.Builder().url(it).headers(builder.build()).method("POST", requestBody).build()
+              if (jsonHeaders.getString("Content-Type", "") == "multipart/form-data") {
+                val multipartBuilder = MultipartBody.Builder().setType(MultipartBody.FORM)
+                val keys = data.keys()
+                for (key in keys) {
+                  if (key == "file") {
+                    val base64File = data.getString(key)
+                    val fileData = base64File?.let { Base64.decode(it, Base64.DEFAULT) }
+                    fileData?.let {
+                      multipartBuilder.addFormDataPart(
+                              "file",
+                              "filename",
+                              it.toRequestBody("application/octet-stream".toMediaTypeOrNull())
+                      )
+                    }
+                  } else {
+                    data.getString(key)?.let { multipartBuilder.addFormDataPart(key, it) }
+                  }
+                }
+                val requestBody = multipartBuilder.build()
+                url?.let {
+                  Request.Builder().url(it).headers(builder.build()).post(requestBody).build()
+                }
+              } else {
+                val payload = data.toString()
+                val requestBody = payload.toRequestBody()
+                url?.let {
+                  Request.Builder().url(it).headers(builder.build()).method("POST", requestBody).build()
+                }
               }
             } else {
               val formBuilder = FormBody.Builder()
@@ -275,16 +300,15 @@ class HttpNativePlugin : Plugin() {
               return
             }
           }
-          val responseBodyBytes = responseBody.bytes()
           val contentType = response.header("Content-Type")
 
           val responseData = when {
             contentType?.contains("application/json") == true -> responseBody.string()
             contentType?.contains("text/") == true -> responseBody.string()
-            else -> Base64.encodeToString(responseBodyBytes, Base64.NO_WRAP)
+            else -> Base64.encodeToString(responseBody.bytes(), Base64.NO_WRAP)
           }
 
-          ret.put("data", contentType)
+          ret.put("data", responseData)
           val jsonObject = JSONObject()
 
           for (i in 0 until response.headers.size) {
