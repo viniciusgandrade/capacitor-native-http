@@ -28,6 +28,8 @@ import java.security.cert.X509Certificate
 import java.util.*
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.*
+import android.util.Base64
+
 @CapacitorPlugin(name = "HttpNative")
 class HttpNativePlugin : Plugin() {
 
@@ -273,7 +275,16 @@ class HttpNativePlugin : Plugin() {
               return
             }
           }
-          ret.put("data", responseBody.string())
+          val responseBodyBytes = responseBody.bytes()
+          val contentType = response.header("Content-Type")
+
+          val responseData = when {
+            contentType?.contains("application/json") == true -> responseBody.string()
+            contentType?.contains("text/") == true -> responseBody.string()
+            else -> Base64.encodeToString(responseBodyBytes, Base64.NO_WRAP)
+          }
+
+          ret.put("data", contentType)
           val jsonObject = JSONObject()
 
           for (i in 0 until response.headers.size) {

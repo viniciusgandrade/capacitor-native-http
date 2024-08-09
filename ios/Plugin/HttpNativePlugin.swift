@@ -160,10 +160,29 @@ public class HttpNativePlugin: CAPPlugin {
                     }
                     switch response.result {
                     case .success(let data):
-                        if let stringValue = String(data: data!, encoding: .utf8) {
-                            call.resolve([
-                                "data": stringValue
-                            ])
+                        if let data = data {
+                            let contentType = response.response?.mimeType
+                            var responseData: String
+
+                            if contentType?.contains("application/json") == true || contentType?.contains("text/") == true {
+                                responseData = String(data: data, encoding: .utf8) ?? "{}"
+                            } else {
+                                responseData = data.base64EncodedString()
+                            }
+
+                            var headersDict = [String: String]()
+                                if let headers = response.response?.allHeaderFields as? [String: String] {
+                                    headersDict = headers
+                                }
+
+                            let headersJsonString = (try? JSONSerialization.data(withJSONObject: headersDict, options: []))
+                                       .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+
+
+                                call.resolve([
+                                    "data": responseData,
+                                    "headers": headersJsonString
+                                ])
                         } else {
                             call.resolve([
                                 "data": "{}"
