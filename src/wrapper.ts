@@ -1,9 +1,9 @@
-import { Observable } from 'rxjs';
+import { Observable, Subscriber } from 'rxjs';
 
 import { HttpNative } from './index';
 
 export const callNative = (req: any): Observable<any> => {
-  return new Observable((ob) => {
+  return new Observable(ob => {
     const headers: any = {};
     req.headers.keys().forEach((key: any) => {
       headers[key] = req.headers.get(key);
@@ -11,7 +11,11 @@ export const callNative = (req: any): Observable<any> => {
     console.log('montou headers');
     let data = req.body;
 
-    if (req.method === 'POST' && headers['Content-Type'] === 'application/x-www-form-urlencoded' && req.body) {
+    if (
+      req.method === 'POST' &&
+      headers['Content-Type'] === 'application/x-www-form-urlencoded' &&
+      req.body
+    ) {
       data = {};
       const params = req.body.split('&');
       for (const param of params) {
@@ -22,22 +26,20 @@ export const callNative = (req: any): Observable<any> => {
         }
       }
     }
-    
 
     const params: any = {};
     req.params.keys().forEach((key: any) => {
       params[key] = req.params.get(key);
     });
-    if (
-      headers['Content-Type'].includes('multipart/form-data')
-    ) {
-      convertFormData(req.body).then((formData) => {
+    if (headers['Content-Type'].includes('multipart/form-data')) {
+      convertFormData(req.body).then(formData => {
         makeRequest({
           method: req.method,
           data: formData.data,
           params,
           headers,
-          url: req.url
+          url: req.url,
+          ob: ob,
         });
       });
     } else {
@@ -46,46 +48,49 @@ export const callNative = (req: any): Observable<any> => {
         data,
         params,
         headers,
-        url: req.url
+        url: req.url,
+        ob: ob,
       });
     }
   });
 };
 
-function makeRequest(req: {method: string,
-  data: any,
-  params: any,
-  headers: any,
-  url: string
-}){
+function makeRequest(req: {
+  method: string;
+  data: any;
+  params: any;
+  headers: any;
+  url: string;
+  ob: Subscriber<any>;
+}) {
   HttpNative.request({
     method: req.method,
     data: req.data,
     params: req.params,
     headers: req.url,
-    url: req.url
-  }).then((res: any) => {
-    let responseBody;
-    const headers = JSON.parse(res.headers);
-    const contentType = headers['Content-Type'];
-    if (contentType.includes('application/json')) {
-      responseBody = checkJson(res.data);
-    }
-    else if (contentType.includes('text/')) {
-      responseBody = res.data;
-    }
-    else {
-      responseBody = base64ToBlob(res.data, contentType);
-    }
-    ob.next({
-      body: responseBody,
-      headers
+    url: req.url,
+  })
+    .then((res: any) => {
+      let responseBody;
+      const headers = JSON.parse(res.headers);
+      const contentType = headers['Content-Type'];
+      if (contentType.includes('application/json')) {
+        responseBody = checkJson(res.data);
+      } else if (contentType.includes('text/')) {
+        responseBody = res.data;
+      } else {
+        responseBody = base64ToBlob(res.data, contentType);
+      }
+      req.ob.next({
+        body: responseBody,
+        headers,
+      });
+      req.ob.complete();
+    })
+    .catch(error => {
+      console.log('erro request!');
+      req.ob.error(checkJson(error.message || error.error || error.errorMessage));
     });
-    ob.complete();
-  }).catch((error) => {
-    console.log('erro request!');
-    ob.error(checkJson(error.message || error.error || error.errorMessage));
-  });
 }
 
 function base64ToBlob(base64String: string, contentType = '') {
@@ -132,7 +137,7 @@ const convertFormData = async (formData: FormData): Promise<any> => {
   return {
     data: formData,
     type: 'formData',
-  };;
+  };
 };
 
 function checkJson(error: string) {
