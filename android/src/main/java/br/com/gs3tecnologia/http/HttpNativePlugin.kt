@@ -203,7 +203,7 @@ class HttpNativePlugin : Plugin() {
 
     val request: Request? =
             if (jsonHeaders.getString("Content-Type", "") != "application/x-www-form-urlencoded") {
-              if (jsonHeaders.getString("Content-Type", "") == "multipart/form-data") {
+              if (jsonHeaders.getString("contentType", "") == "multipart/form-data") {
                 val multipartBuilder = MultipartBody.Builder().setType(MultipartBody.FORM)
                 val keys = data.keys()
                 for (key in keys) {
@@ -213,8 +213,8 @@ class HttpNativePlugin : Plugin() {
                     fileData?.let {
                       multipartBuilder.addFormDataPart(
                               "file",
-                              "filename",
-                              it.toRequestBody("application/octet-stream".toMediaTypeOrNull())
+                              data.getString("nome"),
+                              it.toRequestBody("${if (data.getString("formato") == "png") "image" else "application"}/${data.getString("formato")}".toMediaTypeOrNull())
                       )
                     }
                   } else {
