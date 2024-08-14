@@ -127,6 +127,12 @@ public class HttpNativePlugin: CAPPlugin {
                 for (key, value) in data {
                     if let stringValue = value as? String {
                         multipartFormData.append(Data(stringValue.utf8), withName: key)
+                    } else if let numberValue = value as? NSNumber {
+                        if CFGetTypeID(numberValue) == CFBooleanGetTypeID() {
+                            multipartFormData.append(Data((numberValue.boolValue ? "true" : "false").utf8), withName: key)
+                        } else {
+                            multipartFormData.append(Data(numberValue.stringValue.utf8), withName: key)
+                        }
                     }
                 }
 
