@@ -1,4 +1,5 @@
-import { Observable, Subscriber } from 'rxjs';
+import type { Subscriber } from 'rxjs';
+import { Observable } from 'rxjs';
 
 import { HttpNative } from './index';
 
@@ -31,27 +32,14 @@ export const callNative = (req: any): Observable<any> => {
     req.params.keys().forEach((key: any) => {
       params[key] = req.params.get(key);
     });
-    if (headers['Content-Type'].includes('multipart/form-data')) {
-      convertFormData(req.body).then(formData => {
-        makeRequest({
-          method: req.method,
-          data: formData.data,
-          params,
-          headers,
-          url: req.url,
-          ob: ob,
-        });
-      });
-    } else {
-      makeRequest({
-        method: req.method,
-        data,
-        params,
-        headers,
-        url: req.url,
-        ob: ob,
-      });
-    }
+    makeRequest({
+      method: req.method,
+      data,
+      params,
+      headers,
+      url: req.url,
+      ob: ob,
+    });
   });
 };
 
@@ -103,42 +91,6 @@ function base64ToBlob(base64String: string, contentType = '') {
   const byteArray = new Uint8Array(byteArrays);
   return new Blob([byteArray], { type: contentType });
 }
-
-const readFileAsBase64 = (file: File): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const data = reader.result as string;
-      resolve(btoa(data));
-    };
-    reader.onerror = reject;
-
-    reader.readAsBinaryString(file);
-  });
-
-const convertFormData = async (formData: FormData): Promise<any> => {
-  const newFormData: any[] = [];
-  for (const pair of formData.entries()) {
-    const [key, value] = pair;
-    if (value instanceof File) {
-      const base64File = await readFileAsBase64(value);
-      newFormData.push({
-        key,
-        value: base64File,
-        type: 'base64File',
-        contentType: value.type,
-        fileName: value.name,
-      });
-    } else {
-      newFormData.push({ key, value, type: 'string' });
-    }
-  }
-
-  return {
-    data: formData,
-    type: 'formData',
-  };
-};
 
 function checkJson(error: string) {
   try {

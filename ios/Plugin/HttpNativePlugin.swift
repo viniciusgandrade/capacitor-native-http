@@ -87,6 +87,7 @@ public class HttpNativePlugin: CAPPlugin {
         var _headers = call.getObject("headers") ?? [:]
 
         let contentType = _headers["Content-Type"] as? String ?? "application/json"
+        let contentTypeTemp = _headers["contentType"] as? String ?? ""
 
         _headers.removeValue(forKey: "Content-Type")
 
@@ -120,7 +121,7 @@ public class HttpNativePlugin: CAPPlugin {
             }
             request = self.session?.request(url, method: HTTPMethod(rawValue: method), parameters: parameters, encoder: encoder, headers: headers);
         } else {
-            if (contentType == "multipart/form-data"){
+            if (contentTypeTemp == "multipart/form-data"){
                 request = AF.upload(multipartFormData: { multipartFormData in
                 // Add parameters
                 for (key, value) in data {
@@ -130,11 +131,13 @@ public class HttpNativePlugin: CAPPlugin {
                 }
 
                 // Add file data
-                    if let fileData = Data(base64Encoded: data["file"] as! String),
-                   let fileName = data["fileName"] as? String,
-                   let mimeType = data["contentType"] as? String {
-                    multipartFormData.append(fileData, withName: "file", fileName: fileName, mimeType: mimeType)
-                }
+                    if let base64File = data["file"] as? String,
+                       let fileData = Data(base64Encoded: base64File, options: .ignoreUnknownCharacters),
+                       let fileName = data["nome"] as? String,
+                       let formato = data["formato"] as? String {
+                        let mimeType = (formato == "png" ? "image" : "application") + "/\(formato)"
+                        multipartFormData.append(fileData, withName: "file", fileName: fileName, mimeType: mimeType)
+                    }
             }, to: url1, method: HTTPMethod(rawValue: method), headers: headers)
             } else {
                 guard let jsonData = try? JSONSerialization.data(withJSONObject: data, options: []) else {
