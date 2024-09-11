@@ -125,6 +125,9 @@ public class HttpNativePlugin: CAPPlugin {
                 request = AF.upload(multipartFormData: { multipartFormData in
                 // Add parameters
                 for (key, value) in data {
+                    if key == "file" {
+                        continue;
+                    }
                     if let stringValue = value as? String {
                         multipartFormData.append(Data(stringValue.utf8), withName: key)
                     } else if let numberValue = value as? NSNumber {
