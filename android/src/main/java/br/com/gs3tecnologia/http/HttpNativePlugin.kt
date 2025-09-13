@@ -28,6 +28,9 @@ import java.security.cert.X509Certificate
 import java.util.*
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.*
+import android.util.Base64
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+
 @CapacitorPlugin(name = "HttpNative")
 class HttpNativePlugin : Plugin() {
 
@@ -49,7 +52,7 @@ class HttpNativePlugin : Plugin() {
     val listCert = activity.application.assets.list(certhFolder)?.filter { cer -> cer.contains(".cer") }
     val certs = mutableListOf<String>();
     listCert!!.forEach { certPath ->
-      val cert = String(Base64.getEncoder().encode((loadPublicKey("${certhFolder}/${certPath}").encoded)))
+      val cert = String(java.util.Base64.getEncoder().encode((loadPublicKey("${certhFolder}/${certPath}").encoded)))
       certs.add("sha256/$cert")
     }
     builder.add(hostname, *certs.toTypedArray())
@@ -57,20 +60,20 @@ class HttpNativePlugin : Plugin() {
     val certificatePinner: CertificatePinner = builder.build()
     httpClient = pluginCall.getInt("timeout", 30)?.let {
       OkHttpClient.Builder()
-              .certificatePinner(certificatePinner)
-              .connectTimeout(it.toLong(), TimeUnit.SECONDS)
-              .readTimeout(it.toLong(), TimeUnit.SECONDS)
-              .writeTimeout(it.toLong(), TimeUnit.SECONDS)
-              .callTimeout(it.toLong(), TimeUnit.SECONDS)
-              .build()
+        .certificatePinner(certificatePinner)
+        .connectTimeout(it.toLong(), TimeUnit.SECONDS)
+        .readTimeout(it.toLong(), TimeUnit.SECONDS)
+        .writeTimeout(it.toLong(), TimeUnit.SECONDS)
+        .callTimeout(it.toLong(), TimeUnit.SECONDS)
+        .build()
     }!!
     buildClientAuthentication()
     unsafeHttpClient = pluginCall.getInt("timeout", 30)?.let {
       UnsafeOkHttpClient.getUnsafeOkHttpClient().newBuilder()
-              .readTimeout(it.toLong(), TimeUnit.SECONDS)
-              .writeTimeout(it.toLong(), TimeUnit.SECONDS)
-              .callTimeout(it.toLong(), TimeUnit.SECONDS)
-              .build()
+        .readTimeout(it.toLong(), TimeUnit.SECONDS)
+        .writeTimeout(it.toLong(), TimeUnit.SECONDS)
+        .callTimeout(it.toLong(), TimeUnit.SECONDS)
+        .build()
     }!!
 
     httpClient = httpClient.newBuilder().addInterceptor(AddCookieInterceptor(context)).build()
@@ -89,8 +92,8 @@ class HttpNativePlugin : Plugin() {
   private fun buildClientAuthentication() {
     try {
       val m: HandshakeCertificates = HandshakeCertificates.Builder()
-              .addPlatformTrustedCertificates()
-              .build()
+        .addPlatformTrustedCertificates()
+        .build()
       // Load the PFX file into a KeyStore
       val keyStore = KeyStore.getInstance("PKCS12")
       keyStore.load(activity.application.assets.open(certPathMtls), certPassMtls.toCharArray())
@@ -102,14 +105,14 @@ class HttpNativePlugin : Plugin() {
 
       val sslContext = SSLContext.getInstance("TLS")
       sslContext.init(
-              arrayOf<KeyManager>(keyManager),
-              arrayOf<TrustManager>(m.trustManager),
-              null
+        arrayOf<KeyManager>(keyManager),
+        arrayOf<TrustManager>(m.trustManager),
+        null
       )
 
       httpClient = httpClient.newBuilder()
-              .sslSocketFactory(sslContext.socketFactory, m.trustManager)
-              .build()
+        .sslSocketFactory(sslContext.socketFactory, m.trustManager)
+        .build()
     } catch (e: java.lang.Exception) {
       print("Ignorar...");
     }
@@ -180,12 +183,12 @@ class HttpNativePlugin : Plugin() {
       encodedUri.toURL().toString()
     } else {
       val unEncodedUrlString: String =
-              (uri.scheme + "://" + uri.authority + uri.path) + (if (urlQuery != "") "?$urlQuery" else "") + if (uri.fragment != null) uri.fragment else ""
+        (uri.scheme + "://" + uri.authority + uri.path) + (if (urlQuery != "") "?$urlQuery" else "") + if (uri.fragment != null) uri.fragment else ""
       URL(unEncodedUrlString).toString()
     }
 
     val request =
-            url.let { Request.Builder().url(it).headers(builder.build()).method("GET", null).build() }
+      url.let { Request.Builder().url(it).headers(builder.build()).method("GET", null).build() }
 
     makeRequest(request, pluginCall)
   }
@@ -199,21 +202,45 @@ class HttpNativePlugin : Plugin() {
     val data = pluginCall.getObject("data")
 
     val request: Request? =
-            if (jsonHeaders.getString("Content-Type", "") != "application/x-www-form-urlencoded") {
-              val payload = data.toString()
-              val requestBody = payload.toRequestBody()
-              url?.let {
-                Request.Builder().url(it).headers(builder.build()).method("POST", requestBody).build()
+      if (jsonHeaders.getString("Content-Type", "") != "application/x-www-form-urlencoded") {
+        if (jsonHeaders.getString("contentType", "") == "multipart/form-data") {
+          val multipartBuilder = MultipartBody.Builder().setType(MultipartBody.FORM)
+          val keys = data.keys()
+          for (key in keys) {
+            if (key == "file") {
+              val base64File = data.getString(key)
+              val fileData = base64File?.let { Base64.decode(it, Base64.DEFAULT) }
+              fileData?.let {
+                multipartBuilder.addFormDataPart(
+                  "file",
+                  data.getString("nome"),
+                  it.toRequestBody("${if (data.getString("formato") == "png") "image" else "application"}/${data.getString("formato")}".toMediaTypeOrNull())
+                )
               }
             } else {
-              val formBuilder = FormBody.Builder()
-              val keys = data.keys()
-              for (key in keys) {
-                data.getString(key)?.let { formBuilder.add(key, it) }
-              }
-              val formBody: RequestBody = formBuilder.build()
-              url?.let { Request.Builder().url(it).headers(builder.build()).post(formBody).build() }
+              data.getString(key)?.let { multipartBuilder.addFormDataPart(key, it) }
             }
+          }
+          val requestBody = multipartBuilder.build()
+          url?.let {
+            Request.Builder().url(it).headers(builder.build()).post(requestBody).build()
+          }
+        } else {
+          val payload = data.toString()
+          val requestBody = payload.toRequestBody()
+          url?.let {
+            Request.Builder().url(it).headers(builder.build()).method("POST", requestBody).build()
+          }
+        }
+      } else {
+        val formBuilder = FormBody.Builder()
+        val keys = data.keys()
+        for (key in keys) {
+          data.getString(key)?.let { formBuilder.add(key, it) }
+        }
+        val formBody: RequestBody = formBuilder.build()
+        url?.let { Request.Builder().url(it).headers(builder.build()).post(formBody).build() }
+      }
 
     makeRequest(request, pluginCall)
   }
@@ -231,7 +258,8 @@ class HttpNativePlugin : Plugin() {
           var msg = e.message
           if (msg == null || msg == "timeout") {
             msg = "Tempo de espera para requisição excedido.";
-          } else if (msg.contains("Unable to resolve") || msg.contains("java.") || msg.contains("javac.") || msg.contains("certificate")) {
+          }
+          if (msg.contains("Unable to resolve") || msg.contains("java.") || msg.contains("javac.") || msg.contains("certificate")) {
             msg = "Erro ao processar a requisição."
           }
           ret.put("msg", msg)
@@ -272,7 +300,15 @@ class HttpNativePlugin : Plugin() {
               return
             }
           }
-          ret.put("data", responseBody.string())
+          val contentType = response.header("Content-Type")
+
+          val responseData = when {
+            contentType?.contains("application/json") == true -> responseBody.string()
+            contentType?.contains("text/") == true -> responseBody.string()
+            else -> Base64.encodeToString(responseBody.bytes(), Base64.NO_WRAP)
+          }
+
+          ret.put("data", responseData)
           val jsonObject = JSONObject()
 
           for (i in 0 until response.headers.size) {
@@ -311,7 +347,7 @@ class HttpNativePlugin : Plugin() {
 }
 
 internal class FixedKeyManager(private val pk: PrivateKey, vararg chain: X509Certificate) :
-        X509KeyManager {
+  X509KeyManager {
   private val chain: Array<X509Certificate>
 
   init {
@@ -323,9 +359,9 @@ internal class FixedKeyManager(private val pk: PrivateKey, vararg chain: X509Cer
   }
 
   override fun chooseClientAlias(
-          keyType: Array<String?>?,
-          issuers: Array<Principal?>?,
-          socket: Socket?
+    keyType: Array<String?>?,
+    issuers: Array<Principal?>?,
+    socket: Socket?
   ): String {
     return "mykey"
   }
@@ -335,9 +371,9 @@ internal class FixedKeyManager(private val pk: PrivateKey, vararg chain: X509Cer
   }
 
   override fun chooseServerAlias(
-          keyType: String?,
-          issuers: Array<Principal?>?,
-          socket: Socket?
+    keyType: String?,
+    issuers: Array<Principal?>?,
+    socket: Socket?
   ): String {
     throw UnsupportedOperationException()
   }

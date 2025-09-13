@@ -87,6 +87,7 @@ public class HttpNativePlugin: CAPPlugin {
         var _headers = call.getObject("headers") ?? [:]
 
         let contentType = _headers["Content-Type"] as? String ?? "application/json"
+        let contentTypeTemp = _headers["contentType"] as? String ?? ""
 
         _headers.removeValue(forKey: "Content-Type")
 
@@ -120,17 +121,46 @@ public class HttpNativePlugin: CAPPlugin {
             }
             request = self.session?.request(url, method: HTTPMethod(rawValue: method), parameters: parameters, encoder: encoder, headers: headers);
         } else {
-            guard let jsonData = try? JSONSerialization.data(withJSONObject: data, options: []) else {
-                call.reject("JSON inválido")
-                return;
-            }
-            var urlRequest = URLRequest(url: url1)
-            urlRequest.httpMethod = method
-            urlRequest.headers = headers
-            urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            urlRequest.httpBody = jsonData
+            if (contentTypeTemp == "multipart/form-data"){
+                request = AF.upload(multipartFormData: { multipartFormData in
+                // Add parameters
+                for (key, value) in data {
+                    if key == "file" {
+                        continue;
+                    }
+                    if let stringValue = value as? String {
+                        multipartFormData.append(Data(stringValue.utf8), withName: key)
+                    } else if let numberValue = value as? NSNumber {
+                        if CFGetTypeID(numberValue) == CFBooleanGetTypeID() {
+                            multipartFormData.append(Data((numberValue.boolValue ? "true" : "false").utf8), withName: key)
+                        } else {
+                            multipartFormData.append(Data(numberValue.stringValue.utf8), withName: key)
+                        }
+                    }
+                }
 
-            request = self.session?.request(urlRequest)
+                // Add file data
+                    if let base64File = data["file"] as? String,
+                       let fileData = Data(base64Encoded: base64File, options: .ignoreUnknownCharacters),
+                       let fileName = data["nome"] as? String,
+                       let formato = data["formato"] as? String {
+                        let mimeType = (formato == "png" ? "image" : "application") + "/\(formato)"
+                        multipartFormData.append(fileData, withName: "file", fileName: fileName, mimeType: mimeType)
+                    }
+            }, to: url1, method: HTTPMethod(rawValue: method), headers: headers)
+            } else {
+                guard let jsonData = try? JSONSerialization.data(withJSONObject: data, options: []) else {
+                    call.reject("JSON inválido")
+                    return;
+                }
+                var urlRequest = URLRequest(url: url1)
+                urlRequest.httpMethod = method
+                urlRequest.headers = headers
+                urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                urlRequest.httpBody = jsonData
+
+                request = self.session?.request(urlRequest)
+            }
         }
         if (!self.certMtlsPath.isEmpty) {
             if let credential = createPKCS12Credential(certPath: self.certMtlsPath, certPass: self.certPassMtls) {
@@ -160,10 +190,29 @@ public class HttpNativePlugin: CAPPlugin {
                     }
                     switch response.result {
                     case .success(let data):
-                        if let stringValue = String(data: data!, encoding: .utf8) {
-                            call.resolve([
-                                "data": stringValue
-                            ])
+                        if let data = data {
+                            let contentType = response.response?.mimeType
+                            var responseData: String
+
+                            if contentType?.contains("application/json") == true || contentType?.contains("text/") == true {
+                                responseData = String(data: data, encoding: .utf8) ?? "{}"
+                            } else {
+                                responseData = data.base64EncodedString()
+                            }
+
+                            var headersDict = [String: String]()
+                                if let headers = response.response?.allHeaderFields as? [String: String] {
+                                    headersDict = headers
+                                }
+
+                            let headersJsonString = (try? JSONSerialization.data(withJSONObject: headersDict, options: []))
+                                       .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+
+
+                                call.resolve([
+                                    "data": responseData,
+                                    "headers": headersJsonString
+                                ])
                         } else {
                             call.resolve([
                                 "data": "{}"
@@ -178,13 +227,19 @@ public class HttpNativePlugin: CAPPlugin {
                                 self.mountErrorResponse(msg: "Erro ao processar requisição.", statusCode: statusCode, call: call)
                             }
                         } else {
-                            self.mountErrorResponse(msg: error.localizedDescription, statusCode: 400, call: call)
-                            print("Request error: \(error.localizedDescription)")
+                            var status = 403
+                            var msg = "Expired"
+                            if (error.localizedDescription.contains("timed out")) {
+                                status = 400
+                                msg = "Erro ao processar requisição"
+                            }
+                            print("Request error1: \(error.localizedDescription)")
+                            self.mountErrorResponse(msg: msg, statusCode: status, call: call)
                         }
                     }
                 } catch let error {
+                    print("Request error2: \(error.localizedDescription)")
                     self.mountErrorResponse(msg: "Erro ao processar requisição", statusCode: 400, call: call)
-                    print("Request error: \(error.localizedDescription)")
                 }
             }
     }
