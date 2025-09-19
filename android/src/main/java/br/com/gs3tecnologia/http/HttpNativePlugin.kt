@@ -321,6 +321,13 @@ class HttpNativePlugin : Plugin() {
           for (i in 0 until response.headers.size) {
             jsonObject.putOpt(response.headers.name(i), response.headers.value(i))
           }
+
+          contentType = response.header("Content-Type")
+
+          if (contentType.isNullOrBlank()) {
+            jsonObject.put("Content-Type", "application/json; charset=utf-8")
+          }
+
           ret.put("headers", jsonObject.toString())
           pluginCall.resolve(ret)
         }
