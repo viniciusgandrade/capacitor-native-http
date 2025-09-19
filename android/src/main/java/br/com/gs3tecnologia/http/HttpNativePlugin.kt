@@ -325,7 +325,7 @@ class HttpNativePlugin : Plugin() {
           contentType = response.header("Content-Type")
 
           if (contentType.isNullOrBlank()) {
-            jsonObject.put("Content-Type", "application/json; charset=utf-8")
+            jsonObject.put("Content-Type", "application/json")
           }
 
           ret.put("headers", jsonObject.toString())
