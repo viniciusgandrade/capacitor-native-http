@@ -190,23 +190,28 @@ public class HttpNativePlugin: CAPPlugin {
                     }
                     switch response.result {
                     case .success(let data):
+                        var headersDict = [String: String]()
+                            if let headers = response.response?.allHeaderFields as? [String: String] {
+                                headersDict = headers
+                            }
+                      let hasContentType = headersDict.keys.contains { $0.caseInsensitiveCompare("Content-Type") == .orderedSame }
+                      if !hasContentType {
+                          headersDict["Content-Type"] = "application/json; charset=utf-8"
+                      }
+
+                        let headersJsonString = (try? JSONSerialization.data(withJSONObject: headersDict, options: []))
+                                   .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
                         if let data = data {
                             let contentType = response.response?.mimeType
                             var responseData: String
 
-                            if contentType?.contains("application/json") == true || contentType?.contains("text/") == true {
+                            if contentType == nil || contentType?.contains("application/json") == true || contentType?.contains("text/") == true {
                                 responseData = String(data: data, encoding: .utf8) ?? "{}"
                             } else {
                                 responseData = data.base64EncodedString()
                             }
 
-                            var headersDict = [String: String]()
-                                if let headers = response.response?.allHeaderFields as? [String: String] {
-                                    headersDict = headers
-                                }
 
-                            let headersJsonString = (try? JSONSerialization.data(withJSONObject: headersDict, options: []))
-                                       .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
 
 
                                 call.resolve([
@@ -215,7 +220,8 @@ public class HttpNativePlugin: CAPPlugin {
                                 ])
                         } else {
                             call.resolve([
-                                "data": "{}"
+                                "data": "{}",
+                                "headers": headersJsonString
                             ])
                         }
                     case .failure(let error):

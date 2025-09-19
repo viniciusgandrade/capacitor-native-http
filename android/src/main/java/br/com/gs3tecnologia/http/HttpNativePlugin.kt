@@ -300,12 +300,19 @@ class HttpNativePlugin : Plugin() {
               return
             }
           }
-          val contentType = response.header("Content-Type")
+          var contentType = response.header("Content-Type")
+          if (contentType == null) {
+            contentType = "application/json";
+          }
 
-          val responseData = when {
-            contentType?.contains("application/json") == true -> responseBody.string()
-            contentType?.contains("text/") == true -> responseBody.string()
+          var responseData = when {
+            contentType.contains("application/json") -> responseBody.string()
+            contentType.contains("text/") -> responseBody.string()
             else -> Base64.encodeToString(responseBody.bytes(), Base64.NO_WRAP)
+          }
+
+          if (responseData == "") {
+            responseData = "{}";
           }
 
           ret.put("data", responseData)
